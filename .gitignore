@@ -1,0 +1,16 @@
+# This project has no build step and no dependencies — it runs straight from
+# index.html. There is very little to ignore.
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local tooling config (machine-specific paths)
+.claude/
+
+# Logs and temp files
+*.log
+*.tmp

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tax Optimisation Agent — Personal Finance (India)</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">₹</div>
+  <div>
+    <h1>Tax Optimisation Agent</h1>
+    <div class="sub">Rule-based advisory for Indian personal income tax</div>
+  </div>
+  <div class="spacer"></div>
+  <div>
+    <label for="yearSel">Financial year</label>
+    <select id="yearSel"></select>
+  </div>
+  <div>
+    <label for="sampleSel">Load a sample taxpayer</label>
+    <select id="sampleSel">
+      <option value="">— Start blank —</option>
+      <option value="priya">Priya — Salaried, Mumbai, pays rent</option>
+      <option value="rajesh">Rajesh — Salaried, home loan, Pune</option>
+      <option value="ananya">Ananya — Freelance consultant + shares</option>
+      <option value="suresh">Suresh — Retired senior citizen</option>
+    </select>
+  </div>
+</header>
+
+<div class="disclaimer">
+  <strong>Academic project.</strong> This tool provides general information based on published Indian tax provisions.
+  It is not professional tax advice. Verify every figure with a qualified Chartered Accountant before acting.
+</div>
+
+<main class="shell">
+
+  <!-- ==================== INTAKE ==================== -->
+  <section id="intakeView">
+    <div class="split">
+      <div class="card">
+        <header>
+          <h2>Client interview</h2>
+          <span class="badge grey" id="progressBadge">Step 1 of 6</span>
+        </header>
+
+        <div class="steps" id="stepChips"></div>
+
+        <div class="body">
+          <div class="agent-question" id="agentQuestion">
+            <span class="who">Agent</span>
+            <span id="agentQuestionText">Let's start with a few basics about you.</span>
+          </div>
+
+          <form id="intakeForm" autocomplete="off">
+
+            <!-- STEP 1 -->
+            <div class="step-panel" data-step="0">
+              <fieldset>
+                <legend>About you</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-name">Name (optional)</label>
+                    <input type="text" id="f-name" data-path="name" placeholder="e.g. Priya Sharma">
+                  </div>
+                  <div class="field">
+                    <label for="f-age">Age group</label>
+                    <select id="f-age" data-path="ageBand">
+                      <option value="below60">Below 60</option>
+                      <option value="senior">60 to 79 — senior citizen</option>
+                      <option value="superSenior">80 and above — super senior</option>
+                    </select>
+                    <span class="hint">Senior citizens get a higher basic exemption and section 80TTB.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-city">City category</label>
+                    <select id="f-city" data-path="city">
+                      <option value="metro">Metro — Delhi, Mumbai, Kolkata, Chennai</option>
+                      <option value="nonmetro">Non-metro — everywhere else</option>
+                    </select>
+                    <span class="hint">Bengaluru, Pune and Hyderabad count as non-metro for HRA.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-emp">Main source of income</label>
+                    <select id="f-emp" data-path="employmentType">
+                      <option value="salaried">Salaried employee</option>
+                      <option value="professional">Freelancer or professional</option>
+                      <option value="business">Business owner</option>
+                      <option value="retired">Retired / pensioner</option>
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- STEP 2 -->
+            <div class="step-panel hidden" data-step="1">
+              <fieldset>
+                <legend>Salary — take these straight from Form 16 Part B</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-basic">Basic salary (annual)</label>
+                    <input type="number" id="f-basic" data-path="salary.basic" min="0" step="1000" placeholder="0">
+                    <span class="hint">HRA and NPS limits are calculated on this.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-da">Dearness allowance (annual)</label>
+                    <input type="number" id="f-da" data-path="salary.da" min="0" step="1000" placeholder="0">
+                    <span class="hint">Mostly government employees. Leave 0 if unsure.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-hra">HRA received (annual)</label>
+                    <input type="number" id="f-hra" data-path="salary.hraReceived" min="0" step="1000" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-other">All other taxable allowances</label>
+                    <input type="number" id="f-other" data-path="salary.otherAllowances" min="0" step="1000" placeholder="0">
+                    <span class="hint">Special allowance, bonus, LTA received. Pensioners: enter your pension here.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-enps">Employer's NPS contribution</label>
+                    <input type="number" id="f-enps" data-path="salary.employerNps" min="0" step="1000" placeholder="0">
+                    <span class="hint">Section 80CCD(2) — the only big deduction that survives in the new regime.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-pt">Professional tax paid</label>
+                    <input type="number" id="f-pt" data-path="salary.professionalTax" min="0" step="100" placeholder="0">
+                    <span class="hint">Usually ₹2,400–₹2,500 a year. Old regime only.</span>
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Rent you pay</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-rent">Annual rent paid</label>
+                    <input type="number" id="f-rent" data-path="rent.paidAnnual" min="0" step="1000" placeholder="0">
+                    <span class="hint">Monthly rent × 12. Needed for the HRA exemption or section 80GG.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-lta">Exempt allowances already claimed</label>
+                    <input type="number" id="f-lta" data-path="salary.exemptAllowances" min="0" step="1000" placeholder="0">
+                    <span class="hint">LTA actually claimed, uniform allowance etc. Leave 0 if unsure.</span>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- STEP 3 -->
+            <div class="step-panel hidden" data-step="2">
+              <fieldset>
+                <legend>House property</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-hstatus">Do you own a house?</label>
+                    <select id="f-hstatus" data-path="house.status">
+                      <option value="none">No property</option>
+                      <option value="selfOccupied">Yes — I live in it (self-occupied)</option>
+                      <option value="letOut">Yes — it is rented out (let out)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="f-hint2">Home loan interest paid (annual)</label>
+                    <input type="number" id="f-hint2" data-path="house.loanInterest" min="0" step="1000" placeholder="0">
+                    <span class="hint">From the bank's provisional certificate. Capped at ₹2,00,000 for a self-occupied house.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-hprin">Home loan principal repaid (annual)</label>
+                    <input type="number" id="f-hprin" data-path="house.principalRepaid" min="0" step="1000" placeholder="0">
+                    <span class="hint">This counts inside your ₹1.5 lakh 80C limit.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-hrent">Rent received (annual, if let out)</label>
+                    <input type="number" id="f-hrent" data-path="house.rentReceived" min="0" step="1000" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-hmun">Municipal tax paid</label>
+                    <input type="number" id="f-hmun" data-path="house.municipalTax" min="0" step="500" placeholder="0">
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- STEP 4 -->
+            <div class="step-panel hidden" data-step="3">
+              <fieldset>
+                <legend>Business or freelance income</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-bgross">Gross receipts / turnover</label>
+                    <input type="number" id="f-bgross" data-path="business.grossReceipts" min="0" step="10000" placeholder="0">
+                    <span class="hint">Total billed before expenses. Needed to test sections 44AD / 44ADA.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-bnet">Net profit after expenses</label>
+                    <input type="number" id="f-bnet" data-path="business.netProfit" min="0" step="10000" placeholder="0">
+                  </div>
+                  <div class="field check">
+                    <input type="checkbox" id="f-bpro" data-path="business.isProfessional">
+                    <label for="f-bpro">I am a professional (doctor, lawyer, engineer, architect, consultant, designer, accountant)</label>
+                  </div>
+                </div>
+                <div class="note-box">
+                  Professionals can declare just 50% of gross receipts as profit under section 44ADA (receipts up to ₹75 lakh).
+                  Small businesses can declare 6% of digital turnover under section 44AD (turnover up to ₹3 crore). No books, no audit.
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- STEP 5 -->
+            <div class="step-panel hidden" data-step="4">
+              <fieldset>
+                <legend>Investments and insurance you already have</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-80c">80C investments (excluding EPF &amp; home loan principal)</label>
+                    <input type="number" id="f-80c" data-path="deductions.sec80C" min="0" step="1000" placeholder="0">
+                    <span class="hint">LIC premium, PPF, ELSS, NSC, tuition fees, tax-saver FD.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-epf">Your EPF contribution (annual)</label>
+                    <input type="number" id="f-epf" data-path="deductions.epfEmployee" min="0" step="1000" placeholder="0">
+                    <span class="hint">Usually 12% of basic. It already counts inside 80C.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-nps1b">Your own NPS contribution — 80CCD(1B)</label>
+                    <input type="number" id="f-nps1b" data-path="deductions.sec80CCD1B" min="0" step="1000" placeholder="0">
+                    <span class="hint">Extra ₹50,000 over and above 80C.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-80ds">Health insurance — self &amp; family</label>
+                    <input type="number" id="f-80ds" data-path="deductions.sec80D_self" min="0" step="1000" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-80dp">Health insurance — parents</label>
+                    <input type="number" id="f-80dp" data-path="deductions.sec80D_parents" min="0" step="1000" placeholder="0">
+                  </div>
+                  <div class="field check">
+                    <input type="checkbox" id="f-psenior" data-path="deductions.parentsAreSenior">
+                    <label for="f-psenior">My parents are 60 or older (raises the 80D limit to ₹50,000)</label>
+                  </div>
+                  <div class="field">
+                    <label for="f-80e">Education loan interest — 80E</label>
+                    <input type="number" id="f-80e" data-path="deductions.sec80E" min="0" step="1000" placeholder="0">
+                    <span class="hint">No upper limit.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-80eeb">Electric vehicle loan interest — 80EEB</label>
+                    <input type="number" id="f-80eeb" data-path="deductions.sec80EEB" min="0" step="1000" placeholder="0">
+                    <span class="hint">Only for loans sanctioned on or before 31 March 2023.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-80ddb">Medical treatment — 80DDB</label>
+                    <input type="number" id="f-80ddb" data-path="deductions.sec80DDB" min="0" step="1000" placeholder="0">
+                    <span class="hint">Specified diseases only.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-80dd">Disabled dependent — 80DD</label>
+                    <select id="f-80dd" data-path="deductions.sec80DD">
+                      <option value="none">Not applicable</option>
+                      <option value="normal">Disability 40% to 79% — ₹75,000</option>
+                      <option value="severe">Disability 80% or more — ₹1,25,000</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="f-80u">My own disability — 80U</label>
+                    <select id="f-80u" data-path="deductions.sec80U">
+                      <option value="none">Not applicable</option>
+                      <option value="normal">Disability 40% to 79% — ₹75,000</option>
+                      <option value="severe">Disability 80% or more — ₹1,25,000</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="f-80g100">Donations — 100% deductible funds</label>
+                    <input type="number" id="f-80g100" data-path="deductions.sec80G_100" min="0" step="1000" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-80g50">Donations — 50% deductible funds</label>
+                    <input type="number" id="f-80g50" data-path="deductions.sec80G_50" min="0" step="1000" placeholder="0">
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- STEP 6 -->
+            <div class="step-panel hidden" data-step="5">
+              <fieldset>
+                <legend>Capital gains this year</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-ltcgeq">Long-term gains — listed shares &amp; equity funds</label>
+                    <input type="number" id="f-ltcgeq" data-path="capitalGains.ltcgEquity" min="0" step="1000" placeholder="0">
+                    <span class="hint">Held over 12 months. First ₹1,25,000 is exempt; the rest is taxed at 12.5%.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-stcgeq">Short-term gains — listed shares &amp; equity funds</label>
+                    <input type="number" id="f-stcgeq" data-path="capitalGains.stcgEquity" min="0" step="1000" placeholder="0">
+                    <span class="hint">Held under 12 months. Taxed at 20% under section 111A.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-ltcgo">Long-term gains — property, gold, unlisted</label>
+                    <input type="number" id="f-ltcgo" data-path="capitalGains.ltcgOther" min="0" step="1000" placeholder="0">
+                    <span class="hint">Taxed at 12.5% under section 112.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-stcgo">Short-term gains — property, gold, debt funds</label>
+                    <input type="number" id="f-stcgo" data-path="capitalGains.stcgOther" min="0" step="1000" placeholder="0">
+                    <span class="hint">Taxed at your normal slab rate.</span>
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Other income</legend>
+                <div class="grid3">
+                  <div class="field">
+                    <label for="f-sav">Savings bank interest</label>
+                    <input type="number" id="f-sav" data-path="other.savingsInterest" min="0" step="500" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-fd">Fixed deposit interest</label>
+                    <input type="number" id="f-fd" data-path="other.fdInterest" min="0" step="500" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-div">Dividend received</label>
+                    <input type="number" id="f-div" data-path="other.dividend" min="0" step="500" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-fp">Family pension received</label>
+                    <input type="number" id="f-fp" data-path="other.familyPension" min="0" step="1000" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="f-misc">Any other income</label>
+                    <input type="number" id="f-misc" data-path="other.misc" min="0" step="1000" placeholder="0">
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Tax already paid</legend>
+                <div class="grid2">
+                  <div class="field">
+                    <label for="f-tds">TDS deducted so far</label>
+                    <input type="number" id="f-tds" data-path="taxPaid.tds" min="0" step="1000" placeholder="0">
+                    <span class="hint">Check Form 26AS for the exact figure.</span>
+                  </div>
+                  <div class="field">
+                    <label for="f-adv">Advance tax already paid</label>
+                    <input type="number" id="f-adv" data-path="taxPaid.advanceTax" min="0" step="1000" placeholder="0">
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+
+          </form>
+
+          <div class="btn-row" style="margin-top:20px; border-top:1px solid var(--line); padding-top:18px;">
+            <button type="button" class="btn" id="btnBack">← Back</button>
+            <button type="button" class="btn primary" id="btnNext">Next →</button>
+            <div style="flex:1"></div>
+            <button type="button" class="btn primary big" id="btnAnalyse">Analyse my tax →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- live agent panel -->
+      <div class="agent-panel">
+        <div class="card">
+          <header><h2>Agent reasoning</h2><span class="badge info">live</span></header>
+          <div class="body" style="padding:12px 18px;">
+            <div class="agent-log" id="liveLog">
+              <div class="log-line"><div class="dot"></div><div class="txt"><b>Waiting for your details</b><span>Fill the interview and I will start reasoning.</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <header><h2>Running estimate</h2></header>
+          <div class="body" id="liveEstimate">
+            <div class="empty" style="padding:24px 10px;"><div class="icon">₹</div>Enter your income to see a live estimate.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== RESULTS ==================== -->
+  <section id="resultsView" class="hidden">
+    <div class="btn-row" style="margin-bottom:16px;">
+      <button type="button" class="btn" id="btnEdit">← Edit my details</button>
+      <button type="button" class="btn" id="btnPrint">Print / save as PDF</button>
+      <div style="flex:1"></div>
+      <span class="badge grey" id="resultYearBadge"></span>
+    </div>
+
+    <div class="headline" id="headlineStats"></div>
+
+    <div class="tabs" id="resultTabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="actions">Action plan</button>
+      <button class="tab" data-tab="computation">Computation</button>
+      <button class="tab" data-tab="forms">Forms &amp; filing</button>
+      <button class="tab" data-tab="checklist">Documents</button>
+      <button class="tab" data-tab="reasoning">Agent trace</button>
+    </div>
+
+    <div id="tab-overview" class="tab-panel"></div>
+    <div id="tab-actions" class="tab-panel hidden"></div>
+    <div id="tab-computation" class="tab-panel hidden"></div>
+    <div id="tab-forms" class="tab-panel hidden"></div>
+    <div id="tab-checklist" class="tab-panel hidden"></div>
+    <div id="tab-reasoning" class="tab-panel hidden"></div>
+  </section>
+
+</main>
+
+<script src="src/rulebook.js"></script>
+<script src="src/engine.js"></script>
+<script src="src/advisor.js"></script>
+<script src="src/samples.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

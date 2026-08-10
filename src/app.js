@@ -304,34 +304,41 @@
     const end = advice.optimisedTax;
     if (start <= 0 || !steps.length) return '';
 
+    // A step can RAISE the tax — switching regime before investing does exactly
+    // that. So the vertical scale has to cover the highest point of the journey,
+    // which may be above where we started.
+    let peak = Math.max(start, end);
+    let walk = start;
+    steps.forEach((s) => { walk -= s.saving; peak = Math.max(peak, walk); });
+
     const W = 960, H = 330, top = 46, bottom = 262;
     const plot = bottom - top;
     const cols = steps.length + 2;
     const slot = W / cols;
     const bw = Math.min(96, slot * 0.54);
-    const scale = plot / start;
+    const scale = plot / peak;
     const y = (v) => bottom - v * scale;
     const cx = (i) => slot * i + slot / 2;
 
     let svg = '';
-    // baseline
     svg += `<line x1="0" y1="${bottom}" x2="${W}" y2="${bottom}" stroke="var(--line-strong)" stroke-width="1.5"/>`;
 
     // opening bar
-    svg += `<rect x="${cx(0) - bw / 2}" y="${y(start)}" width="${bw}" height="${plot}" rx="5" fill="url(#gStart)"/>`;
+    svg += `<rect x="${cx(0) - bw / 2}" y="${y(start)}" width="${bw}" height="${Math.max(3, start * scale)}" rx="5" fill="url(#gStart)"/>`;
     svg += `<text x="${cx(0)}" y="${y(start) - 12}" class="wf-val">${fmt(start)}</text>`;
     svg += `<text x="${cx(0)}" y="${bottom + 22}" class="wf-lab">Tax today</text>`;
 
-    // falling steps
+    // each step: falls when it saves, rises when it costs
     let running = start;
     steps.forEach((s, i) => {
       const after = running - s.saving;
-      const yTop = y(running);
-      const h = Math.max(3, running * scale - after * scale);
+      const hi = Math.max(running, after);
+      const lo = Math.min(running, after);
+      const isCost = s.saving < 0;
       const x = cx(i + 1) - bw / 2;
-      svg += `<line x1="${cx(i) + bw / 2}" y1="${yTop}" x2="${x}" y2="${yTop}" stroke="var(--ink-300)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
-      svg += `<rect x="${x}" y="${yTop}" width="${bw}" height="${h}" rx="5" fill="url(#gCut)"/>`;
-      svg += `<text x="${cx(i + 1)}" y="${yTop - 12}" class="wf-cut">−${fmt(s.saving)}</text>`;
+      svg += `<line x1="${cx(i) + bw / 2}" y1="${y(running)}" x2="${x}" y2="${y(running)}" stroke="var(--ink-300)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+      svg += `<rect x="${x}" y="${y(hi)}" width="${bw}" height="${Math.max(3, (hi - lo) * scale)}" rx="5" fill="url(${isCost ? '#gCost' : '#gCut'})"/>`;
+      svg += `<text x="${cx(i + 1)}" y="${y(hi) - 12}" class="${isCost ? 'wf-cost' : 'wf-cut'}">${isCost ? '+' : '−'}${fmt(Math.abs(s.saving))}</text>`;
       svg += `<text x="${cx(i + 1)}" y="${bottom + 22}" class="wf-lab">${esc(s.section)}</text>`;
       svg += `<text x="${cx(i + 1)}" y="${bottom + 40}" class="wf-sub">step ${i + 1}</text>`;
       running = after;
@@ -358,6 +365,9 @@
             <linearGradient id="gEnd" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#047857"/>
             </linearGradient>
+            <linearGradient id="gCost" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#fb7185"/><stop offset="100%" stop-color="#e11d48"/>
+            </linearGradient>
           </defs>
           ${svg}
         </svg>
@@ -366,14 +376,35 @@
 
   function renderHowYouSave() {
     const a = advice;
-    const steps = a.recommendations.filter((r) => r.saving > 0);
+    // A step may raise the tax (switching regime before investing), so include
+    // every non-zero step, not only the ones that save.
+    const steps = a.recommendations.filter((r) => r.saving !== 0);
     const advisory = a.recommendations.filter((r) => r.saving === 0);
 
     // Three distinct levers, so the user understands the *kind* of saving.
     const leverRegime = a.comparison.saving;
-    const leverStructure = steps.filter((r) => r.zeroCost).reduce((s, r) => s + r.saving, 0);
+    const leverStructure = steps
+      .filter((r) => r.zeroCost && r.id !== 'regime-switch')
+      .reduce((s, r) => s + r.saving, 0);
     const leverInvest = steps.filter((r) => !r.zeroCost).reduce((s, r) => s + r.saving, 0);
     const outlay = steps.reduce((s, r) => s + (r.invest || 0), 0);
+
+    const flipBanner = a.flipped
+      ? `<div class="flip">
+          <div class="flip-k">The optimisation changed the answer</div>
+          <div class="flip-b">
+            Compared as you stand today, the <b>${esc(a.asIsWinner)} regime</b> is cheaper — and that is
+            where an ordinary regime calculator stops. But the two regimes have different <b>ceilings</b>.
+            Optimising each one to its own limit reverses the verdict: the <b>${esc(a.regime)} regime</b>
+            reaches ${fmt(a.optimisedTax)}, against ${fmt(a.crossRegime.otherBestTax)} for the
+            ${esc(a.crossRegime.other)} regime.
+          </div>
+          <div class="flip-b" style="margin-top:8px;">
+            That is why step 1 below shows a <b>cost, not a saving</b>. Switching on its own makes you worse
+            off; it only pays as a package with the steps that follow.
+          </div>
+        </div>`
+      : '';
 
     const lever = (n, title, amt, body, cls) => `
       <div class="lever ${cls}">
@@ -390,20 +421,25 @@
       .map((r, i) => {
         const m = stepMeta(r);
         running -= r.saving;
+        const isCost = r.saving < 0;
         return `
         <li class="tl-item">
-          <div class="tl-mark">${i + 1}</div>
-          <div class="tl-card">
+          <div class="tl-mark ${isCost ? 'cost' : ''}">${i + 1}</div>
+          <div class="tl-card ${isCost ? 'cost' : ''}">
             <div class="tl-head">
               <div>
                 <div class="tl-title">${esc(r.title)}</div>
                 <div class="tl-tags">
                   <span class="badge brand">Section ${esc(r.section)}</span>
                   <span class="badge grey">${esc(m.when)}</span>
+                  ${r.packageOnly ? '<span class="badge bad">only works as a package</span>' : ''}
                   ${r.zeroCost ? '<span class="badge good">no money needed</span>' : `<span class="badge warn">invest ${fmt(r.invest)}</span>`}
                 </div>
               </div>
-              <div class="tl-save"><div class="v">−${fmt(r.saving)}</div><div class="k">tax saved</div></div>
+              <div class="tl-save ${isCost ? 'cost' : ''}">
+                <div class="v">${isCost ? '+' : '−'}${fmt(Math.abs(r.saving))}</div>
+                <div class="k">${isCost ? 'costs you' : 'tax saved'}</div>
+              </div>
             </div>
             <p class="tl-do">${esc(r.action)}</p>
             <div class="tl-meta">
@@ -435,17 +471,21 @@
       <div class="card feature" style="margin-bottom:22px;">
         <header><h2>Where your saving actually comes from</h2><span class="badge good">${fmt(a.totalSaving)} still to capture</span></header>
         <div class="body">
+          ${flipBanner}
           <p class="lede">
             The agent does not find loopholes. It applies three kinds of legal lever, ordered by what they
-            cost you — the ones needing no money at all come first. Lever 1 is <b>already yours</b> the moment
-            you file under the right regime; levers 2 and 3 are the <b>${fmt(a.totalSaving)}</b> you have
-            not captured yet, which is the figure quoted at the top of this report.
+            cost you. Lever 1 is the regime comparison — the part any calculator can do. Levers 2 and 3 are
+            what this agent adds on top, and together they are the <b>${fmt(a.totalSaving)}</b> quoted at the
+            top of this report.
           </p>
           <div class="levers">
-            ${lever(1, 'Choose the right regime', leverRegime,
-              `<b>Already secured.</b> The law lets you pick, and running both computations shows the
-               <b>${esc(a.regime)} regime</b> costs you ${fmt(leverRegime)} less. It is yours the moment you
-               file correctly — no money, no lock-in, just the right box ticked.`, 'l1')}
+            ${lever(1, 'Pick the cheaper regime', leverRegime,
+              a.flipped
+                ? `A plain comparison of the two regimes as they stand differs by ${fmt(leverRegime)} and
+                   points at the <b>${esc(a.asIsWinner)} regime</b>. The agent overrules it — see above.`
+                : `<b>Already secured.</b> Comparing both computations shows the <b>${esc(a.regime)} regime</b>
+                   costs ${fmt(leverRegime)} less. Yours the moment you file correctly — no money, no lock-in.
+                   <b>Any online calculator will tell you this much.</b>`, 'l1')}
             ${lever(2, 'Restructure what you already earn', leverStructure,
               leverStructure > 0
                 ? 'Same salary, same CTC — only relabelled so the law stops taxing part of it. No money leaves your pocket.'

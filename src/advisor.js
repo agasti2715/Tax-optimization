@@ -548,21 +548,84 @@ function sequence(profile, regime, yearKey) {
   };
 }
 
+/**
+ * THE CENTRAL DECISION.
+ *
+ * A naive tax tool compares the two regimes as the taxpayer stands today and
+ * optimises inside whichever one wins. That is the wrong order, and it hides
+ * the most valuable answer in Indian personal tax.
+ *
+ * The regimes are not two prices for the same thing. They are two different
+ * rule sets, and each has a different CEILING once you have used everything it
+ * allows. A regime that loses today can win comfortably after Rs.1.5 lakh of
+ * 80C, Rs.50,000 of NPS and Rs.75,000 of health cover are in place.
+ *
+ * So we optimise BOTH regimes to their own ceiling, and only then compare. The
+ * regime recommendation becomes a RESULT of the optimisation rather than an
+ * assumption made before it starts.
+ *
+ * When the two orders disagree, the switch is added to the plan as its own
+ * step — and its standalone value is often NEGATIVE. Moving to the old regime
+ * before you have invested anything simply costs money; it pays only as part
+ * of the package. That combination is invisible to any tool that compares
+ * first and optimises second.
+ */
 function generateAdvice(profile, yearKey) {
-  const comparison = TaxEngine.compareRegimes(profile, yearKey);
-  const regime = comparison.winner;
-  const baseTax = comparison.best.totalTax;
+  const comparison = TaxEngine.compareRegimes(profile, yearKey); // as things stand today
+  const asIsWinner = comparison.winner;
+  const baseTax = comparison.best.totalTax; // what you would pay filing correctly, changing nothing
 
-  const seq = sequence(profile, regime, yearKey);
-  const recommendations = seq.recommendations;
-  const running = seq.profile;
+  // Optimise each regime independently, all the way to its own ceiling.
+  const seqNew = sequence(profile, 'new', yearKey);
+  const seqOld = sequence(profile, 'old', yearKey);
+  const regime = seqNew.result.totalTax <= seqOld.result.totalTax ? 'new' : 'old';
+  const seq = regime === 'new' ? seqNew : seqOld;
+  const otherSeq = regime === 'new' ? seqOld : seqNew;
+  const other = regime === 'new' ? 'old' : 'new';
+
+  // Did optimising change which regime wins?
+  const flipped = regime !== asIsWinner;
+
+  const recommendations = [];
+  let running = baseTax;
+
+  if (flipped) {
+    const regimeAsIs = comparison[regime].totalTax;
+    const delta = baseTax - regimeAsIs; // negative when the switch alone costs money
+    recommendations.push({
+      id: 'regime-switch',
+      title: `Move to the ${regime} regime — but only together with the steps below`,
+      section: regime === 'old' ? '115BAC opt-out' : '115BAC',
+      category: 'Regime',
+      zeroCost: true,
+      saving: delta,
+      packageOnly: true,
+      finding:
+        `As you stand today the ${asIsWinner} regime is cheaper, so a simple comparison would stop there. ` +
+        `But the ${regime} regime has the lower ceiling once its deductions are used, and that is what matters.`,
+      action:
+        `Switch to the ${regime} regime AND carry out every step below. On its own the switch ` +
+        `${delta < 0 ? `costs you ${inr(-delta)}` : 'changes little'} — it only pays as a package.`,
+      why:
+        'This is the recommendation a regime calculator cannot reach, because it compares the two ' +
+        'regimes before any optimisation rather than after it.',
+      when: 'When you file',
+      where:
+        regime === 'old'
+          ? 'Inside the ITR, or Form 10-IEA if you have business income'
+          : 'No action needed — the new regime is the default',
+      forms: regime === 'old' ? ['Form 10-IEA (only if you have business income)'] : [],
+    });
+    running = regimeAsIs;
+  }
+
+  for (const r of seq.recommendations) {
+    recommendations.push(r);
+    running -= r.saving;
+  }
+
   const optimised = seq.result;
 
-  /* --- What if the taxpayer went all-in on the OTHER regime instead? ---
-   * A regime that loses today can still win once every deduction is filled.
-   * This answers the question the taxpayer always asks next. */
-  const other = regime === 'new' ? 'old' : 'new';
-  const otherSeq = sequence(profile, other, yearKey);
   const crossRegime = {
     chosen: regime,
     chosenBestTax: optimised.totalTax,
@@ -571,22 +634,27 @@ function generateAdvice(profile, yearKey) {
     otherBestTax: otherSeq.result.totalTax,
     otherOutlay: otherSeq.outlay,
     stillBetter: optimised.totalTax <= otherSeq.result.totalTax,
+    flipped,
+    asIsWinner,
+    asIsGap: comparison.saving,
   };
-  const regimeSwitchSaving =
-    comparison.winner === 'new' ? comparison.old.totalTax - comparison.new.totalTax
-                                : comparison.new.totalTax - comparison.old.totalTax;
 
   return {
     yearKey,
     comparison,
     regime,
+    asIsWinner,
+    flipped,
     baseTax,
     optimisedTax: optimised.totalTax,
     totalSaving: Math.max(0, baseTax - optimised.totalTax),
-    regimeSwitchSaving: Math.max(0, regimeSwitchSaving),
+    /** What a plain regime comparison would have told you, and nothing more. */
+    regimeSwitchSaving: comparison.saving,
+    /** What this agent adds once the regime question is settled. */
+    optimisationSaving: Math.max(0, baseTax - optimised.totalTax),
     crossRegime,
     recommendations,
-    optimisedProfile: running,
+    optimisedProfile: seq.profile,
     optimisedResult: optimised,
     filing: filingRequirements(profile, regime, yearKey),
     advanceTax: TaxEngine.advanceTaxPlan(optimised.totalTax, profile.taxPaid && profile.taxPaid.tds, profile),

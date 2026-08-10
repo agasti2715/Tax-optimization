@@ -210,6 +210,52 @@ eq('Surcharge rate band applied', richR.surcharge.rate * 100, 10);
 if (richR.surcharge.amount > 0) { pass++; console.log('  PASS  Surcharge levied above 50 lakh'); }
 else { fail++; console.log('  FAIL  Surcharge not levied'); }
 
+/* ==========================================================================
+ * TEST 7 — the agent must optimise BOTH regimes before choosing between them.
+ * This is what separates it from a regime calculator.
+ * ======================================================================== */
+
+section('TEST 7 — Vikram: optimising reverses the regime verdict');
+
+const vAdv = Advisor.generateAdvice(SAMPLES.vikram, YEAR);
+console.log(`        as-is     : old ${inr(vAdv.comparison.old.totalTax)} | new ${inr(vAdv.comparison.new.totalTax)}  -> ${vAdv.asIsWinner}`);
+console.log(`        optimised : chosen ${inr(vAdv.optimisedTax)} | other ${inr(vAdv.crossRegime.otherBestTax)}  -> ${vAdv.regime}`);
+
+if (vAdv.asIsWinner === 'new') { pass++; console.log('  PASS  A plain comparison picks the NEW regime'); }
+else { fail++; console.log('  FAIL  Expected a plain comparison to pick the new regime'); }
+
+if (vAdv.regime === 'old') { pass++; console.log('  PASS  After optimising both, the OLD regime wins instead'); }
+else { fail++; console.log('  FAIL  Expected the old regime to win after optimisation'); }
+
+if (vAdv.flipped) { pass++; console.log('  PASS  The flip is detected and flagged'); }
+else { fail++; console.log('  FAIL  flipped flag not set'); }
+
+const switchStep = vAdv.recommendations.find((r) => r.id === 'regime-switch');
+if (switchStep) { pass++; console.log('  PASS  The regime switch appears as its own step in the plan'); }
+else { fail++; console.log('  FAIL  No regime-switch step in the plan'); }
+
+if (switchStep && switchStep.saving < 0) {
+  pass++;
+  console.log(`  PASS  The switch alone COSTS money (${inr(switchStep.saving)}) — it only pays as a package`);
+} else { fail++; console.log('  FAIL  Expected the standalone switch to be a cost'); }
+
+eq('Tax today (best regime, nothing changed)', vAdv.baseTax, 114350, 5);
+eq('Tax after the full plan', vAdv.optimisedTax, 92140, 5);
+eq('Net saving', vAdv.totalSaving, 22210, 5);
+
+const vSum = vAdv.recommendations.reduce((s, r) => s + r.saving, 0);
+eq('Steps still sum exactly, including the negative one', vSum, vAdv.totalSaving, 1);
+
+/* Every sample must keep its steps summing to the headline. */
+section('TEST 8 — the sequential guarantee holds for every sample');
+for (const key of Object.keys(SAMPLES)) {
+  const adv = Advisor.generateAdvice(SAMPLES[key], YEAR);
+  const sum = adv.recommendations.reduce((s, r) => s + r.saving, 0);
+  const ok = Math.abs(sum - adv.totalSaving) <= 1;
+  if (ok) { pass++; console.log(`  PASS  ${key.padEnd(8)} steps sum to ${inr(adv.totalSaving)}`); }
+  else { fail++; console.log(`  FAIL  ${key}: steps sum to ${inr(sum)} but headline says ${inr(adv.totalSaving)}`); }
+}
+
 /* ---------- summary ------------------------------------------------------ */
 
 section('SUMMARY');

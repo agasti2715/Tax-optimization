@@ -408,6 +408,21 @@ tbody tr:hover { background: var(--surface-alt); }
 .lever.l3 .lever-v { color: var(--em-700); }
 .lever-d { font-size: 12.5px; color: var(--ink-600); line-height: 1.5; }
 
+/* ---------- "the optimisation changed the answer" callout ---------------- */
+
+.flip {
+  border: 1px solid var(--gold-100);
+  border-left: 4px solid var(--gold-500);
+  background: linear-gradient(125deg, var(--gold-50), var(--surface) 78%);
+  border-radius: var(--r); padding: 16px 20px; margin-bottom: 20px;
+}
+.flip-k {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+  font-weight: 800; color: var(--gold-600); margin-bottom: 7px;
+}
+.flip-b { font-size: 13.5px; color: var(--ink-800); line-height: 1.6; }
+.flip-b b { color: var(--gold-700); }
+
 /* ---------- waterfall ---------------------------------------------------- */
 
 .wf-wrap { width: 100%; overflow-x: auto; }
@@ -420,6 +435,12 @@ tbody tr:hover { background: var(--surface-alt); }
 .wf-val.end { fill: var(--em-700); }
 .wf-cut {
   font-size: 13.5px; font-weight: 700; fill: var(--gold-600);
+  text-anchor: middle; font-family: "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+/* a step that RAISES the tax — the regime switch before anything is invested */
+.wf-cost {
+  font-size: 13.5px; font-weight: 700; fill: var(--rose-600);
   text-anchor: middle; font-family: "Segoe UI", system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
 }
@@ -460,6 +481,10 @@ tbody tr:hover { background: var(--surface-alt); }
 .tl-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .tl-save { text-align: right; flex-shrink: 0; }
 .tl-save .v { font-size: 19px; font-weight: 700; color: var(--em-600); letter-spacing: -0.02em; }
+.tl-save.cost .v { color: var(--rose-600); }
+.tl-mark.cost { background: linear-gradient(140deg, #fb7185, var(--rose-600)); box-shadow: 0 3px 10px rgba(225, 29, 72, 0.28); }
+.tl-card.cost { background: linear-gradient(150deg, var(--rose-50), var(--surface) 72%); border-color: #fecdd3; }
+.tl-card.cost .tl-after { background: var(--rose-50); color: #9f1239; }
 .tl-save .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-400); font-weight: 700; }
 .tl-do { margin: 0 0 12px; font-size: 13.5px; color: var(--ink-600); line-height: 1.55; }
 .tl-meta {

@@ -152,6 +152,49 @@ const SAMPLES = {
   }),
 
   /* ------------------------------------------------------------------------
+   * SAMPLE E — THE CASE THAT PROVES THE AGENT IS NOT A REGIME CALCULATOR.
+   *
+   * Vikram has never invested anything. Compare the regimes as he stands and
+   * the NEW regime wins comfortably — every online calculator will say so.
+   *
+   * But optimise each regime to its own ceiling and the answer REVERSES: the
+   * old regime, with 80C, 80CCD(1B), 80D and employer NPS all filled, beats
+   * the best the new regime can ever reach for him.
+   *
+   * The switch on its own LOSES him money. It only pays as a package. No tool
+   * that compares first and optimises second can find this.
+   * ---------------------------------------------------------------------- */
+  vikram: Object.assign(blankProfile(), {
+    name: 'Vikram Rao — Marketing Manager, Delhi (has never invested)',
+    ageBand: 'below60',
+    city: 'metro',
+    employmentType: 'salaried',
+    salary: {
+      basic: 800000,
+      da: 0,
+      hraReceived: 400000,
+      otherAllowances: 400000,
+      employerNps: 0,
+      professionalTax: 2500,
+      exemptAllowances: 0,
+    },
+    rent: { paidAnnual: 360000 },
+    house: { status: 'none', loanInterest: 0, principalRepaid: 0, rentReceived: 0, municipalTax: 0 },
+    business: { netProfit: 0, grossReceipts: 0, isProfessional: false },
+    capitalGains: { stcgEquity: 0, ltcgEquity: 0, stcgOther: 0, ltcgOther: 0 },
+    other: { savingsInterest: 8000, fdInterest: 0, dividend: 0, familyPension: 0, misc: 0 },
+    deductions: Object.assign(blankProfile().deductions, {
+      sec80C: 0, // nothing beyond the EPF his employer deducts
+      epfEmployee: 96000, // 12% of basic
+      sec80CCD1B: 0,
+      sec80D_self: 0,
+      sec80D_parents: 0,
+      parentsAreSenior: true, // both parents are over 60 — a Rs.50,000 limit
+    }),
+    taxPaid: { tds: 110000, advanceTax: 0 },
+  }),
+
+  /* ------------------------------------------------------------------------
    * SAMPLE D — retired senior citizen. Exercises the higher basic exemption,
    * 80TTB, Form 15H and the advance-tax exemption for seniors.
    * ---------------------------------------------------------------------- */

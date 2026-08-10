@@ -22,7 +22,7 @@
 
 const RULEBOOK = {
   meta: {
-    version: '1.1.0',
+    version: '1.1.1',
     defaultYear: 'FY2025-26',
     disclaimer:
       'Educational project. Not professional tax advice. Verify every figure ' +

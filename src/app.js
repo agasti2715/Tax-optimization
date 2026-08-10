@@ -433,15 +433,19 @@
 
     $('#tab-howyousave').innerHTML = `
       <div class="card feature" style="margin-bottom:22px;">
-        <header><h2>Where your saving actually comes from</h2><span class="badge good">${fmt(a.totalSaving + leverRegime)} in total</span></header>
+        <header><h2>Where your saving actually comes from</h2><span class="badge good">${fmt(a.totalSaving)} still to capture</span></header>
         <div class="body">
           <p class="lede">
-            The agent does not find loopholes. It applies three different kinds of legal lever, in order of
-            how much they cost you — the ones that need no money at all come first.
+            The agent does not find loopholes. It applies three kinds of legal lever, ordered by what they
+            cost you — the ones needing no money at all come first. Lever 1 is <b>already yours</b> the moment
+            you file under the right regime; levers 2 and 3 are the <b>${fmt(a.totalSaving)}</b> you have
+            not captured yet, which is the figure quoted at the top of this report.
           </p>
           <div class="levers">
             ${lever(1, 'Choose the right regime', leverRegime,
-              `The law lets you pick. Running both computations shows the <b>${esc(a.regime)} regime</b> is cheaper for you — a saving that costs nothing but a correct tick-box.`, 'l1')}
+              `<b>Already secured.</b> The law lets you pick, and running both computations shows the
+               <b>${esc(a.regime)} regime</b> costs you ${fmt(leverRegime)} less. It is yours the moment you
+               file correctly — no money, no lock-in, just the right box ticked.`, 'l1')}
             ${lever(2, 'Restructure what you already earn', leverStructure,
               leverStructure > 0
                 ? 'Same salary, same CTC — only relabelled so the law stops taxing part of it. No money leaves your pocket.'

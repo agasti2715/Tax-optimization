@@ -277,6 +277,212 @@
       </div>`;
   }
 
+  /* ---- sensible defaults for when/where, overridable per rule ---------- */
+
+  const STEP_DEFAULTS = {
+    'Salary restructuring': { when: 'Before the next payroll cycle', where: 'Your HR / payroll team' },
+    Investment: { when: 'Before 31 March', where: 'Your bank, fund house or the NPS portal' },
+    Insurance: { when: 'Before 31 March', where: 'Your insurer' },
+    'Capital gains': { when: 'Before 31 March', where: 'Your broker or fund house' },
+    'Family planning': { when: 'Before 31 March', where: 'Your bank' },
+    Compliance: { when: 'Before you file', where: 'incometax.gov.in' },
+    Business: { when: 'When you file your return', where: 'incometax.gov.in' },
+    Warning: { when: 'Review now', where: '—' },
+    'Often missed': { when: 'Review now', where: '—' },
+  };
+  const stepMeta = (r) => {
+    const d = STEP_DEFAULTS[r.category] || { when: 'Before 31 March', where: '—' };
+    return { when: r.when || d.when, where: r.where || d.where };
+  };
+
+  /**
+   * The waterfall: starting tax on the left, one falling bar per action,
+   * final tax on the right. Drawn as inline SVG so it prints and scales.
+   */
+  function renderWaterfall(steps) {
+    const start = advice.baseTax;
+    const end = advice.optimisedTax;
+    if (start <= 0 || !steps.length) return '';
+
+    const W = 960, H = 330, top = 46, bottom = 262;
+    const plot = bottom - top;
+    const cols = steps.length + 2;
+    const slot = W / cols;
+    const bw = Math.min(96, slot * 0.54);
+    const scale = plot / start;
+    const y = (v) => bottom - v * scale;
+    const cx = (i) => slot * i + slot / 2;
+
+    let svg = '';
+    // baseline
+    svg += `<line x1="0" y1="${bottom}" x2="${W}" y2="${bottom}" stroke="var(--line-strong)" stroke-width="1.5"/>`;
+
+    // opening bar
+    svg += `<rect x="${cx(0) - bw / 2}" y="${y(start)}" width="${bw}" height="${plot}" rx="5" fill="url(#gStart)"/>`;
+    svg += `<text x="${cx(0)}" y="${y(start) - 12}" class="wf-val">${fmt(start)}</text>`;
+    svg += `<text x="${cx(0)}" y="${bottom + 22}" class="wf-lab">Tax today</text>`;
+
+    // falling steps
+    let running = start;
+    steps.forEach((s, i) => {
+      const after = running - s.saving;
+      const yTop = y(running);
+      const h = Math.max(3, running * scale - after * scale);
+      const x = cx(i + 1) - bw / 2;
+      svg += `<line x1="${cx(i) + bw / 2}" y1="${yTop}" x2="${x}" y2="${yTop}" stroke="var(--ink-300)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+      svg += `<rect x="${x}" y="${yTop}" width="${bw}" height="${h}" rx="5" fill="url(#gCut)"/>`;
+      svg += `<text x="${cx(i + 1)}" y="${yTop - 12}" class="wf-cut">−${fmt(s.saving)}</text>`;
+      svg += `<text x="${cx(i + 1)}" y="${bottom + 22}" class="wf-lab">${esc(s.section)}</text>`;
+      svg += `<text x="${cx(i + 1)}" y="${bottom + 40}" class="wf-sub">step ${i + 1}</text>`;
+      running = after;
+    });
+
+    // closing bar
+    const last = cols - 1;
+    svg += `<line x1="${cx(last - 1) + bw / 2}" y1="${y(end)}" x2="${cx(last) - bw / 2}" y2="${y(end)}" stroke="var(--ink-300)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+    svg += `<rect x="${cx(last) - bw / 2}" y="${y(end)}" width="${bw}" height="${Math.max(3, end * scale)}" rx="5" fill="url(#gEnd)"/>`;
+    svg += `<text x="${cx(last)}" y="${y(end) - 12}" class="wf-val end">${fmt(end)}</text>`;
+    svg += `<text x="${cx(last)}" y="${bottom + 22}" class="wf-lab">Tax after</text>`;
+
+    return `
+      <div class="wf-wrap">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="Waterfall showing tax falling from ${fmt(start)} to ${fmt(end)}">
+          <defs>
+            <linearGradient id="gStart" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#4338ca"/>
+            </linearGradient>
+            <linearGradient id="gCut" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#d97706"/>
+            </linearGradient>
+            <linearGradient id="gEnd" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#047857"/>
+            </linearGradient>
+          </defs>
+          ${svg}
+        </svg>
+      </div>`;
+  }
+
+  function renderHowYouSave() {
+    const a = advice;
+    const steps = a.recommendations.filter((r) => r.saving > 0);
+    const advisory = a.recommendations.filter((r) => r.saving === 0);
+
+    // Three distinct levers, so the user understands the *kind* of saving.
+    const leverRegime = a.comparison.saving;
+    const leverStructure = steps.filter((r) => r.zeroCost).reduce((s, r) => s + r.saving, 0);
+    const leverInvest = steps.filter((r) => !r.zeroCost).reduce((s, r) => s + r.saving, 0);
+    const outlay = steps.reduce((s, r) => s + (r.invest || 0), 0);
+
+    const lever = (n, title, amt, body, cls) => `
+      <div class="lever ${cls}">
+        <div class="lever-n">${n}</div>
+        <div class="lever-b">
+          <div class="lever-t">${title}</div>
+          <div class="lever-v">${fmt(amt)}</div>
+          <div class="lever-d">${body}</div>
+        </div>
+      </div>`;
+
+    let running = a.baseTax;
+    const timeline = steps
+      .map((r, i) => {
+        const m = stepMeta(r);
+        running -= r.saving;
+        return `
+        <li class="tl-item">
+          <div class="tl-mark">${i + 1}</div>
+          <div class="tl-card">
+            <div class="tl-head">
+              <div>
+                <div class="tl-title">${esc(r.title)}</div>
+                <div class="tl-tags">
+                  <span class="badge brand">Section ${esc(r.section)}</span>
+                  <span class="badge grey">${esc(m.when)}</span>
+                  ${r.zeroCost ? '<span class="badge good">no money needed</span>' : `<span class="badge warn">invest ${fmt(r.invest)}</span>`}
+                </div>
+              </div>
+              <div class="tl-save"><div class="v">−${fmt(r.saving)}</div><div class="k">tax saved</div></div>
+            </div>
+            <p class="tl-do">${esc(r.action)}</p>
+            <div class="tl-meta">
+              <div><span class="mk">Where</span>${esc(m.where)}</div>
+              <div><span class="mk">Proof</span>${(r.forms || []).map((f) => esc(f)).join(' · ') || '—'}</div>
+            </div>
+            <div class="tl-after">Your tax after this step: <b>${fmt(running)}</b></div>
+          </div>
+        </li>`;
+      })
+      .join('');
+
+    const at = a.advanceTax;
+    const finalStep = `
+      <li class="tl-item">
+        <div class="tl-mark done">✓</div>
+        <div class="tl-card final">
+          <div class="tl-title">File ${esc(a.filing.itr.key)} and you are done</div>
+          <p class="tl-do">
+            ${at.required
+              ? `Because your liability after TDS is ${fmt(at.net)}, you must also pay advance tax in four instalments — 15% by 15 June, 45% by 15 September, 75% by 15 December and 100% by 15 March — using Challan ITNS-280. Missing them costs 1% a month under sections 234B and 234C.`
+              : esc(at.reason)}
+          </p>
+          <div class="tl-after">Final tax for the year: <b>${fmt(a.optimisedTax)}</b> instead of ${fmt(a.baseTax)}.</div>
+        </div>
+      </li>`;
+
+    $('#tab-howyousave').innerHTML = `
+      <div class="card feature" style="margin-bottom:22px;">
+        <header><h2>Where your saving actually comes from</h2><span class="badge good">${fmt(a.totalSaving + leverRegime)} in total</span></header>
+        <div class="body">
+          <p class="lede">
+            The agent does not find loopholes. It applies three different kinds of legal lever, in order of
+            how much they cost you — the ones that need no money at all come first.
+          </p>
+          <div class="levers">
+            ${lever(1, 'Choose the right regime', leverRegime,
+              `The law lets you pick. Running both computations shows the <b>${esc(a.regime)} regime</b> is cheaper for you — a saving that costs nothing but a correct tick-box.`, 'l1')}
+            ${lever(2, 'Restructure what you already earn', leverStructure,
+              leverStructure > 0
+                ? 'Same salary, same CTC — only relabelled so the law stops taxing part of it. No money leaves your pocket.'
+                : 'Nothing further to restructure — your salary is already efficiently arranged.', 'l2')}
+            ${lever(3, 'Invest where the law rewards you', leverInvest,
+              leverInvest > 0
+                ? `Requires putting ${fmt(outlay)} into instruments the Act encourages. Only worth it if you wanted to save that money anyway.`
+                : 'No investment-linked deduction is available to you in this regime — so the agent is not going to tell you to lock money away for nothing.', 'l3')}
+          </div>
+        </div>
+      </div>
+
+      ${steps.length ? `
+      <div class="card" style="margin-bottom:22px;">
+        <header><h2>Your tax, falling step by step</h2>
+          <span class="badge grey">${(a.comparison.best.effectiveRate).toFixed(1)}% → ${(a.optimisedResult.effectiveRate).toFixed(1)}% effective rate</span></header>
+        <div class="body">${renderWaterfall(steps)}</div>
+      </div>` : ''}
+
+      <div class="card" style="margin-bottom:22px;">
+        <header><h2>Do these, in this order</h2><span class="badge brand">${steps.length + 1} steps</span></header>
+        <div class="body">
+          <ol class="timeline">${timeline}${finalStep}</ol>
+        </div>
+      </div>
+
+      ${advisory.length ? `
+      <div class="card">
+        <header><h2>Also worth knowing</h2><span class="badge grey">${advisory.length} points</span></header>
+        <div class="body">
+          <p class="lede">These do not change your number today, but each one is a real provision that applies to your situation.</p>
+          ${advisory.map((r) => `
+            <div class="advis">
+              <div class="advis-t">${esc(r.title)} <span class="badge grey">${esc(r.section)}</span></div>
+              <div class="advis-d">${esc(r.action)}</div>
+              ${r.why ? `<div class="advis-w">${esc(r.why)}</div>` : ''}
+            </div>`).join('')}
+        </div>
+      </div>` : ''}`;
+  }
+
   function renderActions() {
     const a = advice;
     const cards = a.recommendations
@@ -549,6 +755,7 @@
     $('#resultYearBadge').textContent = RULEBOOK.years[year].label;
     renderHeadline();
     renderOverview();
+    renderHowYouSave();
     renderActions();
     renderComputation();
     renderForms();

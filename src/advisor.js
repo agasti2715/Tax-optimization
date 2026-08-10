@@ -32,6 +32,7 @@ function buildCandidates(profile, regime, yearKey) {
   const o = profile.other || {};
   const h = profile.house || {};
   const b = profile.business || {};
+  const c = profile.capitalGains || {};
   const salaryBase = n(s.basic) + n(s.da);
   const isOld = regime === 'old';
   const out = [];
@@ -201,10 +202,19 @@ function buildCandidates(profile, regime, yearKey) {
       category: 'Warning',
       informational: true,
       finding: `Your salary includes ${inr(n(s.hraReceived))} of HRA, but no rent has been entered, so the entire amount is taxable.`,
-      action: 'If you actually pay rent, enter it and re-run the analysis — this is usually the single largest exemption for a salaried tenant.',
+      action:
+        'If you actually pay rent, enter it and re-run the analysis — this is usually the single largest ' +
+        'exemption available to a salaried tenant. And if you live with your parents in a house THEY own, ' +
+        'you may pay them rent and claim HRA against it: they declare it as house property income, where ' +
+        'a flat 30% is deductible u/s 24(a) and the balance is taxed at their slab, often a lower one.',
       invest: 0,
-      forms: ['Rent receipts', 'Rent agreement', "Landlord's PAN if annual rent exceeds Rs.1,00,000"],
-      why: 'Claiming HRA without genuine rent payment is a false claim. The department cross-checks the landlord PAN.',
+      when: 'Before the year ends',
+      where: 'Your HR / payroll team, and your landlord',
+      forms: ['Rent receipts', 'Registered rent agreement', "Landlord's PAN if annual rent exceeds Rs.1,00,000"],
+      why:
+        'Claiming HRA without genuinely paying rent is a false claim, and the department cross-checks the ' +
+        "landlord's PAN against their return. If you pay rent to a parent, the money must actually move by " +
+        'bank transfer and they must declare it — otherwise it is evasion, not planning.',
     });
   }
 
@@ -360,6 +370,122 @@ function buildCandidates(profile, regime, yearKey) {
       invest: 0,
       forms: ['Form 10-IA', 'Certificate from a notified medical authority'],
       why: 'These are flat deductions, not reimbursements — among the most under-claimed provisions in the Act.',
+    });
+  }
+
+  /* ---- RULE 15: move deposit interest into a parent's lower slab ---- */
+  const totalInterest = n(o.savingsInterest) + n(o.fdInterest);
+  if (totalInterest > 25000) {
+    out.push({
+      id: 'gift-parents',
+      title: "Move your deposit interest into your parents' hands",
+      section: '56(2)(x) / 80TTB',
+      category: 'Family planning',
+      informational: true,
+      zeroCost: true,
+      finding: `You earn ${inr(totalInterest)} of bank interest, taxed at your marginal rate on top of your salary.`,
+      action:
+        'A gift to your parents is entirely exempt — parents are "relatives" under s.56(2)(x). ' +
+        'Crucially, the clubbing provisions in s.64 apply only to a spouse and to minor children, ' +
+        'never to parents. Once the money is genuinely theirs, the interest is taxed in their hands, not yours.',
+      why:
+        'A senior citizen gets a higher basic exemption, a Rs.50,000 deduction u/s 80TTB, and the s.87A rebate. ' +
+        'If your parents have little other income, the very same interest can end up taxed at nil. ' +
+        'The gift must be real and irreversible — you cannot keep control of the money.',
+      when: 'Before 31 March',
+      where: 'Your bank — transfer by cheque or NEFT, never cash',
+      forms: ['A simple written gift deed', 'Form 15H for your parents', 'Their own income tax return'],
+    });
+  }
+
+  /* ---- RULE 16: tax-loss harvesting against booked gains ---- */
+  const anyGains = n(c.stcgEquity) + n(c.ltcgEquity) + n(c.ltcgOther) + n(c.stcgOther);
+  if (anyGains > 0) {
+    out.push({
+      id: 'loss-harvest',
+      title: 'Book your losing positions to cancel out these gains',
+      section: '70 / 71 / 74',
+      category: 'Capital gains',
+      informational: true,
+      zeroCost: true,
+      finding: `You have booked ${inr(anyGains)} of capital gains this year.`,
+      action:
+        'Sell any holding sitting at a loss before 31 March. A SHORT-term capital loss can be set off ' +
+        'against both short-term and long-term gains; a LONG-term loss can only be set off against ' +
+        'long-term gains. Whatever is left over carries forward for 8 years.',
+      why:
+        'Carrying a loss forward requires you to file your return BY the due date. File even one day late ' +
+        'and the loss is lost permanently.',
+      when: 'Before 31 March',
+      where: 'Your broker or fund house',
+      forms: ['Broker capital gains statement', 'Schedule CFL in the ITR'],
+    });
+  }
+
+  /* ---- RULE 17: home loan interest above the self-occupied cap ---- */
+  if (isOld && h.status === 'selfOccupied' && n(h.loanInterest) > L.homeLoanInterestSelfOccupied) {
+    const wasted = n(h.loanInterest) - L.homeLoanInterestSelfOccupied;
+    out.push({
+      id: 'joint-home-loan',
+      title: `${inr(wasted)} of your home loan interest is going unused`,
+      section: '24(b)',
+      category: 'Often missed',
+      informational: true,
+      finding: `You pay ${inr(n(h.loanInterest))} of interest, but only ${inr(L.homeLoanInterestSelfOccupied)} is deductible on a self-occupied house.`,
+      action:
+        'If the property AND the loan are held jointly with a working spouse or parent, each co-owner ' +
+        'claims up to Rs.2,00,000 separately against their own income — effectively doubling the deduction.',
+      why:
+        'Both conditions must hold: co-OWNER of the property and co-BORROWER on the loan. ' +
+        'Being only a co-borrower is not enough, and the split follows the ownership share.',
+      when: 'At purchase, or through a loan restructure',
+      where: 'Your bank and the sub-registrar',
+      forms: ['Interest certificate naming both borrowers', 'Property registration document'],
+    });
+  }
+
+  /* ---- RULE 18: convert special allowance into bill-backed reimbursements ---- */
+  if (isOld && n(s.otherAllowances) > 200000) {
+    out.push({
+      id: 'restructure-allowances',
+      title: 'Convert part of your special allowance into reimbursements',
+      section: '10(14) / Rule 3',
+      category: 'Salary restructuring',
+      informational: true,
+      zeroCost: true,
+      finding: `${inr(n(s.otherAllowances))} of your pay sits in special allowance, which is fully taxable rupee for rupee.`,
+      action:
+        'Ask HR to re-label part of it as bill-backed reimbursements — fuel and driver, telephone and ' +
+        'internet, books and periodicals, and a meal card. Each is either exempt or valued concessionally ' +
+        'when supported by actual bills.',
+      why:
+        'Your CTC does not change, only the labelling. This works in the OLD regime only — s.115BAC ' +
+        'withdraws most of these exemptions. You must genuinely incur and submit the bills.',
+      when: 'Before the next payroll cycle',
+      where: 'Your HR / payroll team',
+      forms: ['Revised salary structure letter', 'Monthly bills', 'Form 12BB'],
+    });
+  }
+
+  /* ---- RULE 19: a Hindu Undivided Family is a second taxpayer ---- */
+  if (n(b.grossReceipts) > 0 || h.status === 'letOut') {
+    out.push({
+      id: 'huf',
+      title: 'Consider forming a Hindu Undivided Family',
+      section: 'HUF — a separate assessee',
+      category: 'Family planning',
+      informational: true,
+      finding: 'You have rental or business income that could legitimately be assessed as a separate taxpayer.',
+      action:
+        'An HUF is a distinct assessee with its OWN PAN, its own basic exemption, its own Rs.1.5 lakh ' +
+        '80C limit and its own s.87A rebate. Ancestral property income, or a new venture, can be ' +
+        'assessed in the HUF rather than in your personal hands.',
+      why:
+        'In effect a second set of slabs for the same family. Salary income can never be routed through ' +
+        'an HUF, and partition is legally difficult to reverse — take professional advice before creating one.',
+      when: 'Plan before the financial year begins',
+      where: 'A Chartered Accountant, then apply for a PAN',
+      forms: ['Form 49A (PAN for the HUF)', 'HUF deed', 'A separate ITR-2 or ITR-3'],
     });
   }
 

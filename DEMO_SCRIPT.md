@@ -73,6 +73,27 @@ Four numbers appear across the top:
 >
 > The new regime isn't just today's answer. It's genuinely her answer."
 
+### Click the **How you save** tab — spend the most time here
+
+> "This tab answers the question the numbers alone never do: *where does the saving actually come from?*
+>
+> The agent pulls three different kinds of lever, ordered by what they cost you.
+> **Lever 1 — choose the right regime: ₹62,090.** Already secured, costs nothing but a correct tick-box.
+> **Lever 2 — restructure what she already earns: ₹13,100.** Same CTC, just relabelled.
+> **Lever 3 — invest where the law rewards you: ₹0.** And notice the agent says so honestly — in the new
+> regime there is no investment-linked deduction, so it refuses to tell her to lock money away for nothing.
+> A tool that always recommends buying something is selling, not advising."
+
+Scroll to the **waterfall**.
+
+> "Her tax falling bar by bar — ₹90,010, minus ₹13,100 at section 80CCD(2), landing at ₹76,910.
+> Effective rate drops from 6.5% to 5.9%."
+
+Scroll to **"Do these, in this order"**.
+
+> "And this is the deliverable. Every action has a deadline, a place to go, the proof to keep, and the
+> running tax figure after that step — so she knows exactly what to do on Monday morning."
+
 ### Click the **Action plan** tab
 
 > "One recommendation actually moves money: ask HR to move ₹84,000 of her special allowance into

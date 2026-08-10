@@ -131,7 +131,29 @@ node test/verify.js
 
 ---
 
-## 5:00 — Show a second profile (45 seconds)
+## 5:00 — THE CLINCHER: load **Vikram** (60 seconds)
+
+If you only have time for one more thing, do this one. It is the answer to
+*"isn't this just a regime calculator?"*
+
+Load **"Vikram — Never invested (optimising flips the regime)"**, click Analyse, open **How you save**.
+
+> "Vikram earns ₹16 lakh and has never invested a rupee. Compare the two regimes as he stands —
+> which is exactly what every online calculator does — and the **new regime wins by ₹56,160**.
+> A calculator would stop right there and tell him he's done.
+>
+> Our agent doesn't compare first. It **optimises both regimes to their own ceiling, and compares
+> after**. And the verdict reverses: the old regime, fully used, reaches **₹92,140** — below the
+> **₹96,880** that is the absolute best the new regime can ever do for him.
+>
+> Now look at step 1. It's **red**. Switching to the old regime, on its own, **costs him ₹56,160**.
+> It only pays as a package with the five steps that follow. He invests ₹1,79,000, and ends up
+> **₹22,210** better off than the answer a calculator gave him.
+>
+> That recommendation is *unreachable* if you compare before you optimise. That's the difference
+> between a calculator and an agent."
+
+## 5:45 — Show a contrasting profile (30 seconds)
 
 Load **"Rajesh — Salaried, home loan, Pune"**, click Analyse.
 
@@ -153,6 +175,15 @@ Load **"Rajesh — Salaried, home loan, Pune"**, click Analyse.
 ---
 
 # Questions your teacher will probably ask
+
+**"Isn't this just telling me the difference between the old and new regime?"**
+> That is exactly what it would be if it compared the regimes and stopped — and that is the trap
+> most tax tools fall into. The regimes aren't two prices for the same thing; they're two rule sets
+> with different **ceilings**. We optimise each one to its own limit and compare *after*, so the
+> regime recommendation is an output of the agent, not an assumption it starts from.
+> Load Vikram: a plain comparison says new regime by ₹56,160, our agent says old regime, and it's
+> right by ₹4,740 at the ceiling. The switch on its own is a **loss** — no comparison-first tool can
+> ever surface that combination.
 
 **"Where is the AI? This looks like a calculator."**
 > The intelligence is in rule selection and ranking, not arithmetic. Fourteen advisory rules

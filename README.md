@@ -72,6 +72,24 @@ So the system separates *knowing the law* from *explaining the law*:
 | `src/samples.js` | ~150 | Four demo taxpayers exercising every branch |
 | `test/verify.js` | ~230 | Regression tests against hand-computed figures |
 
+### Why the regime is chosen *after* optimising, not before
+
+The obvious design — compare the two regimes, pick the winner, optimise inside it — is wrong, and
+it is what makes most tax tools glorified regime calculators.
+
+The regimes are not two prices for the same thing. They are two rule sets with different
+**ceilings**. A regime that loses today can win comfortably once ₹1.5 lakh of 80C, ₹50,000 of NPS
+and ₹75,000 of health cover are in place. Deciding before optimising throws that away.
+
+So both regimes are optimised to their own limit, and only then compared. The regime
+recommendation is an **output** of the agent rather than an assumption it starts from.
+
+When the two orders disagree, the switch enters the plan as its own step — and its standalone
+value is usually **negative**. Moving regime before investing anything simply costs money; it pays
+only as a package. Load the `vikram` sample: a plain comparison prefers the new regime by ₹56,160,
+yet the old regime optimised lands ₹4,740 below the best the new regime can ever reach for him.
+No comparison-first tool can surface that combination.
+
 ### Why savings are measured, not estimated
 
 Most tax calculators estimate a deduction's benefit as `amount × assumed marginal rate`. That

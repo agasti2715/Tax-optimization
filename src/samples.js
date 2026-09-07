@@ -214,7 +214,68 @@ const SAMPLES = {
     }),
     taxPaid: { tds: 45000, advanceTax: 0 },
   }),
+
+  /* ------------------------------------------------------------------------
+   * SAMPLE E — THE CASE NO OTHER TOOL GETS RIGHT.
+   *
+   * A 29-year-old consultant. Because she has professional income, her regime
+   * choice is governed by s.115BAC(6): leaving the new regime is a once-in-a-
+   * lifetime move, and returning to it is the only move she has left after
+   * that.
+   *
+   * On this year's figures the old regime saves her about Rs.23,000. Every
+   * calculator on the internet — and a naive reading of our own engine —
+   * therefore tells her to file Form 10-IEA and opt out.
+   *
+   * src/stopping.js disagrees. Solved as an optimal stopping problem over her
+   * remaining career, the answer is to STAY in the new regime and keep the
+   * option unspent. The Rs.23,000 is real, but it is not worth the option it
+   * would cost: her income is early in its growth and variable enough that the
+   * flexibility is worth more than one year's saving.
+   *
+   * Use this profile to demonstrate the feature. It is the case where looking
+   * ahead does not merely confirm the one-year answer but reverses it. See
+   * test/verify_stopping.js, which holds the behaviour in place.
+   * ---------------------------------------------------------------------- */
+  meera: Object.assign(blankProfile(), {
+    name: 'Meera Iyer — Independent consultant, age 29, Bengaluru',
+    ageBand: 'below60',
+    city: 'metro',
+    employmentType: 'professional',
+    salary: { basic: 0, da: 0, hraReceived: 0, otherAllowances: 0, employerNps: 0, professionalTax: 0, exemptAllowances: 0 },
+    rent: { paidAnnual: 0 },
+    house: { status: 'selfOccupied', loanInterest: 200000, principalRepaid: 150000, rentReceived: 0, municipalTax: 0 },
+    business: { netProfit: 1600000, grossReceipts: 1680000, isProfessional: true },
+    deductions: Object.assign(blankProfile().deductions, {
+      sec80C: 150000,
+      sec80CCD1B: 50000,
+      sec80D_self: 25000,
+      sec80D_parents: 50000,
+      parentsAreSenior: true,
+      sec80E: 200000, // education loan from her degree — no upper limit
+    }),
+    taxPaid: { tds: 0, advanceTax: 0 },
+  }),
+};
+
+/**
+ * Forecasting features for each sample — age, employment type, and how much of
+ * the income is variable.
+ *
+ * src/forecast.js needs these and they are NOT derivable from the profile: two
+ * consultants both earning Rs.16 lakh can face completely different
+ * distributions next year, and it is the distribution, not the level, that
+ * drives both the advance tax quantile and the value of the regime option.
+ */
+const SAMPLE_FEATURES = {
+  priya:  { age: 31, employmentType: 'salaried',     variableShare: 0.35 },
+  rajesh: { age: 38, employmentType: 'salaried',     variableShare: 0.20 },
+  ananya: { age: 34, employmentType: 'salaried',     variableShare: 0.25 },
+  vikram: { age: 45, employmentType: 'business',     variableShare: 0.50 },
+  suresh: { age: 68, employmentType: 'salaried',     variableShare: 0.05 },
+  meera:  { age: 29, employmentType: 'professional', variableShare: 0.40 },
 };
 
 window.SAMPLES = SAMPLES;
+window.SAMPLE_FEATURES = SAMPLE_FEATURES;
 window.blankProfile = blankProfile;

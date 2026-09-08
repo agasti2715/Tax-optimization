@@ -256,6 +256,41 @@ const SAMPLES = {
     }),
     taxPaid: { tds: 0, advanceTax: 0 },
   }),
+
+  /* ------------------------------------------------------------------------
+   * SAMPLE F — THE ONE WHERE THE BUDGET CHANGES THE ANSWER.
+   *
+   * High rent and a home loan make the old regime genuinely better for him,
+   * and he has never invested a rupee, so every ceiling is wide open. That
+   * combination is what makes the allocation question interesting: with
+   * unlimited cash the order does not matter because you reach everything,
+   * but with Rs.50,000 the instrument you reach FIRST is the whole decision.
+   *
+   * Move the budget slider on the Advanced tab and watch the answer change:
+   *
+   *   Rs.0        restructure salary into employer NPS - costs no cash at all
+   *   Rs.50,000   the same, plus Rs.50,000 of 80C
+   *   Rs.1.2 lakh 80C grows and the NPS restructuring SHRINKS, because 80C is
+   *               the cheaper way to buy the same deduction once cash allows
+   *
+   * That substitution is the thing a fixed-order rule list cannot produce,
+   * and greedy leaves up to Rs.22,290 on the table here.
+   * ---------------------------------------------------------------------- */
+  arjun: Object.assign(blankProfile(), {
+    name: 'Arjun Nair - Salaried, big rent and a home loan, never invested',
+    ageBand: 'below60',
+    city: 'metro',
+    employmentType: 'salaried',
+    salary: { basic: 900000, da: 0, hraReceived: 450000, otherAllowances: 250000,
+              employerNps: 0, professionalTax: 2500, exemptAllowances: 0 },
+    rent: { paidAnnual: 480000 },
+    house: { status: 'selfOccupied', loanInterest: 200000, principalRepaid: 0,
+             rentReceived: 0, municipalTax: 0 },
+    deductions: Object.assign(blankProfile().deductions, {
+      sec80E: 250000, // education loan interest - no upper limit
+    }),
+    taxPaid: { tds: 120000, advanceTax: 0 },
+  }),
 };
 
 /**
@@ -274,6 +309,7 @@ const SAMPLE_FEATURES = {
   vikram: { age: 45, employmentType: 'business',     variableShare: 0.50 },
   suresh: { age: 68, employmentType: 'salaried',     variableShare: 0.05 },
   meera:  { age: 29, employmentType: 'professional', variableShare: 0.40 },
+  arjun:  { age: 36, employmentType: 'salaried',     variableShare: 0.15 },
 };
 
 window.SAMPLES = SAMPLES;

@@ -421,7 +421,7 @@ function solveRegime(profile, yearKey, regime, budget) {
  * @param budget how much the taxpayer can still commit this year, in rupees.
  *               Infinity reproduces the unconstrained question advisor.js asks.
  */
-function optimise(profile, yearKey, opts) {
+function optimiseAllocation(profile, yearKey, opts) {
   const o = Object.assign({ budget: Infinity }, opts || {});
   const budget = o.budget === Infinity ? 1e12 : gNum(o.budget);
 
@@ -521,7 +521,7 @@ function greedyBaseline(profile, yearKey, regime, budget) {
  * taxpayer at one budget. Positive means greedy left money on the table.
  */
 function optimalityGap(profile, yearKey, budget) {
-  const exact = optimise(profile, yearKey, { budget });
+  const exact = optimiseAllocation(profile, yearKey, { budget });
   const greedyOld = greedyBaseline(profile, yearKey, 'old', budget);
   const greedyNew = greedyBaseline(profile, yearKey, 'new', budget);
   const greedy = greedyOld.objective <= greedyNew.objective ? greedyOld : greedyNew;
@@ -542,7 +542,7 @@ function optimalityGap(profile, yearKey, budget) {
  * Plain global, plus a CommonJS tail for the Node tests.
  * ------------------------------------------------------------------------ */
 const Allocate = {
-  optimise,
+  optimise: optimiseAllocation,
   solveRegime,
   greedyBaseline,
   optimalityGap,

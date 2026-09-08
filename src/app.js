@@ -807,9 +807,242 @@
     renderReasoning();
     renderAdvanced();
 
+    // The agent pipeline runs last of the computations but renders the first
+    // tab, because the dashboard is what the user should land on.
+    runPipeline();
+    renderDashboard();
+    renderScenarios();
+    renderAgents();
+
     $('#intakeView').classList.add('hidden');
     $('#resultsView').classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ==========================================================================
+   * THE AGENT PIPELINE — see src/agents.js
+   * ------------------------------------------------------------------------
+   * Every render below reads from one orchestrator run rather than calling the
+   * computation modules directly. That is the point of the architecture: the
+   * UI consumes an aggregated result, and has no opinion about the order the
+   * agents ran in or what any of them does.
+   * ========================================================================*/
+
+  let pipeline = null;      // the last orchestrator result
+  let agentLog = [];        // events published on the bus, for the pipeline tab
+
+  function runPipeline() {
+    agentLog = [];
+    pipeline = AgentFramework.orchestrate(profile, year, {
+      budget: advState().budget,
+      onEvent: (e) => agentLog.push(Object.assign({ at: Date.now() }, e)),
+    });
+    return pipeline;
+  }
+
+  /* ==========================================================================
+   * DASHBOARD — the visual summary the report asks for in §3.1.1(5)
+   * ========================================================================*/
+
+  function renderDashboard() {
+    const p = pipeline;
+    if (!p || !p.ok) {
+      $('#tab-dashboard').innerHTML =
+        '<div class="card"><div class="body"><p class="lede">' +
+        esc(p && p.errors ? p.errors.join('; ') : 'Nothing computed yet.') +
+        '</p></div></div>';
+      return;
+    }
+
+    const proj = p.projection;
+    const opt = p.optimization;
+    const val = p.validation;
+    const grossIncome = proj.best.grossTotalNormal;
+
+    const stat = (label, value, sub, tone) => `
+      <div class="kpi ${tone || ''}">
+        <div class="kpi-l">${esc(label)}</div>
+        <div class="kpi-v">${fmt(value)}</div>
+        <div class="kpi-s">${esc(sub)}</div>
+      </div>`;
+
+    const savedPct = opt.baseTax > 0 ? Math.round((opt.totalSaving / opt.baseTax) * 100) : 0;
+
+    $('#tab-dashboard').innerHTML = `
+      <div class="kpis">
+        ${stat('Tax as you stand', opt.baseTax, 'Best regime, nothing changed')}
+        ${stat('After the plan', opt.optimisedTax, 'If you act on every step', 'good')}
+        ${stat('You can save', opt.totalSaving, savedPct + '% of what you owe now', 'accent')}
+        ${stat('Effective rate', 0, (proj.effectiveRate || 0).toFixed(1) + '% of total income', 'plain')}
+      </div>
+
+      <div class="chart-grid">
+        <div class="card">
+          <header><h2>Income against tax payable</h2><span class="badge grey">Figure 7</span></header>
+          <div class="body">
+            ${Charts.beforeAfter(grossIncome, opt.baseTax, opt.optimisedTax)}
+            <p class="chart-note">The bars are on one scale on purpose. A saving means something
+               different against ${fmt(grossIncome)} of income than it does in isolation.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <header><h2>Where the saving comes from</h2><span class="badge grey">Figure 6</span></header>
+          <div class="body">
+            ${Charts.donut(opt.breakdown)}
+            <p class="chart-note">Measured for you, not a cohort average — which is the whole
+               argument against one-size-fits-all advice.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <header><h2>Old regime against new</h2><span class="badge ${proj.winner === 'new' ? 'good' : ''}">${esc(proj.winner)} wins</span></header>
+          <div class="body">
+            ${Charts.regimeBars(proj.old.totalTax, proj.new.totalTax)}
+          </div>
+        </div>
+
+        <div class="card">
+          <header><h2>How much of each limit you use</h2><span class="badge grey">headroom</span></header>
+          <div class="body">
+            ${Charts.utilisationBars(val.utilisation)}
+            <p class="chart-note">The empty part of each bar is the point — that is money still
+               on the table.</p>
+          </div>
+        </div>
+      </div>
+
+      ${val.warnings.length ? `
+        <div class="card">
+          <header><h2>Worth checking before you rely on this</h2>
+            <span class="badge warn">${val.warnings.length}</span></header>
+          <div class="body">
+            <ul class="plain-list">${val.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
+          </div>
+        </div>` : ''}`;
+  }
+
+  /* ==========================================================================
+   * WHAT-IF SCENARIOS — report §3.1.1 requirement 4
+   * ========================================================================*/
+
+  function renderScenarios() {
+    const p = pipeline;
+    if (!p || !p.ok) return;
+    const sc = p.scenarios;
+
+    const rows = sc.scenarios.map((s) => {
+      const saves = s.delta < 0;
+      return `<tr>
+        <td><b>${esc(s.label)}</b><br><span class="sub">${esc(s.detail)}</span></td>
+        <td class="num">${fmt(s.tax)}</td>
+        <td class="num" style="color:${saves ? 'var(--good)' : s.delta === 0 ? 'var(--ink-faint)' : 'var(--bad)'}; font-weight:700;">
+          ${s.delta === 0 ? 'no change' : (saves ? '−' : '+') + fmt(Math.abs(s.delta))}
+        </td>
+      </tr>`;
+    }).join('');
+
+    $('#tab-scenarios').innerHTML = `
+      <div class="card">
+        <header><h2>What would happen if…</h2><span class="badge grey">${sc.scenarios.length} modelled</span></header>
+        <div class="body">
+          <p class="lede">Each row is a real re-run of the tax engine on a copy of your details —
+             not an estimate. Your actual figures are never touched.</p>
+          ${Charts.scenarioBars(sc.scenarios)}
+        </div>
+      </div>
+
+      <div class="card">
+        <header><h2>The same thing as numbers</h2>
+          <span class="badge grey">baseline ${fmt(sc.baseline)}</span></header>
+        <div class="body">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>If you…</th><th class="num">Tax becomes</th><th class="num">Difference</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          <p class="chart-note">Only one of these moves your tax up. That is deliberate — a raise
+             is worth seeing on the same axis, because the question people actually ask is how much
+             of it they keep.</p>
+        </div>
+      </div>`;
+  }
+
+  /* ==========================================================================
+   * AGENT PIPELINE — makes the architecture visible rather than claimed
+   * ========================================================================*/
+
+  function renderAgents() {
+    const p = pipeline;
+    if (!p) return;
+
+    const order = AgentFramework.topologicalOrder(AgentFramework.AGENTS);
+    const timing = {};
+    for (const t of p.timeline) timing[t.agent] = t.ms;
+
+    const chain = order.map((a, i) => `
+      <div class="agent-node">
+        <div class="agent-step">${i + 1}</div>
+        <div class="agent-body">
+          <div class="agent-name">${esc(a.name)}</div>
+          <div class="agent-role">${esc(a.role)}</div>
+          <div class="agent-meta">
+            ${a.dependsOn.length
+              ? 'waits for ' + a.dependsOn.map(esc).join(' + ')
+              : 'runs first — nothing to wait for'}
+            &nbsp;·&nbsp; <b>${timing[a.name] === undefined ? '—' : timing[a.name] + 'ms'}</b>
+          </div>
+        </div>
+      </div>`).join('<div class="agent-arrow">↓</div>');
+
+    const events = agentLog.map((e) => {
+      const label = e.type === 'agent:done'
+        ? `<b>${esc(e.agent)}</b> finished in ${e.ms}ms`
+        : e.type === 'agent:start'
+          ? `<b>${esc(e.agent)}</b> started — ${esc(e.role || '')}`
+          : e.type === 'pipeline:start'
+            ? `Orchestrator resolved the execution order: ${e.agents.map(esc).join(' → ')}`
+            : e.type === 'pipeline:done'
+              ? `Pipeline complete in ${e.ms}ms`
+              : esc(e.type);
+      return `<li>${label}</li>`;
+    }).join('');
+
+    $('#tab-agents').innerHTML = `
+      <div class="card">
+        <header><h2>How the answer was actually produced</h2>
+          <span class="badge good">${p.totalMs}ms</span></header>
+        <div class="body">
+          <p class="lede">Four specialised agents, run in dependency order by the orchestrator.
+             Each declares what it needs; the orchestrator sorts that graph and refuses to run at
+             all if the dependencies form a cycle.</p>
+          <div class="agent-chain">${chain}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <header><h2>What the orchestrator published</h2>
+          <span class="badge grey">${agentLog.length} events</span></header>
+        <div class="body">
+          <p class="lede">The agents communicate over a publish–subscribe bus. This log is what
+             the pipeline emitted on this run — it is the real trace, not a description of one
+             written afterwards.</p>
+          <ol class="event-log">${events}</ol>
+        </div>
+      </div>
+
+      <div class="card">
+        <header><h2>One thing worth being clear about</h2></header>
+        <div class="body">
+          <p>These are deterministic software agents — autonomous units with declared inputs,
+             outputs and domain logic. <b>None of them calls a language model.</b></p>
+          <p>That is deliberate. Tax arithmetic from a language model is confidently wrong at
+             unpredictable moments, and a wrong figure delivered fluently is worse than no tool at
+             all. The only model in this project is the intake assistant, which fills the form and
+             is forbidden from computing anything.</p>
+        </div>
+      </div>`;
   }
 
   /* ==========================================================================

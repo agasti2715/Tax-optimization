@@ -266,7 +266,7 @@ function criticalRatio(sortedLiabilities, tds, opts, referenceTotal) {
  * @param opts.samples          Monte Carlo draws (default 400)
  * @param opts.opportunityRate  what the taxpayer's money earns elsewhere
  */
-function optimise(profile, yearKey, features, opts) {
+function optimiseAdvanceTax(profile, yearKey, features, opts) {
   const o = Object.assign({ samples: 400, opportunityRate: 0.06, seed: 20260908 }, opts || {});
   const tds = aNum(profile.taxPaid && profile.taxPaid.tds);
 
@@ -383,8 +383,8 @@ function valueOfModel(profile, yearKey, features, opts) {
   const o = Object.assign({ samples: 400, opportunityRate: 0.06, seed: 20260908 }, opts || {});
   const tds = aNum(profile.taxPaid && profile.taxPaid.tds);
 
-  const withModel = optimise(profile, yearKey, features, opts);
-  const withPrior = optimise(profile, yearKey, features,
+  const withModel = optimiseAdvanceTax(profile, yearKey, features, opts);
+  const withPrior = optimiseAdvanceTax(profile, yearKey, features,
     Object.assign({}, opts || {}, { forcePrior: true }));
 
   /*
@@ -463,7 +463,7 @@ function valueOfModel(profile, yearKey, features, opts) {
  * Plain global, plus a CommonJS tail for the Node tests.
  * ------------------------------------------------------------------------ */
 const AdvanceTax = {
-  optimise,
+  optimise: optimiseAdvanceTax,
   valueOfModel,
   liabilitySamples,
   scheduleForTarget,

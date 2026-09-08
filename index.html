@@ -6,7 +6,7 @@
 <title>Tax Optimisation Agent — Personal Finance (India)</title>
 <!-- The ?v= stamps defeat browser and CDN caching. Bump them whenever you
      change a file, so nobody is ever shown a stale build. -->
-<link rel="stylesheet" href="assets/styles.css?v=1.2.0">
+<link rel="stylesheet" href="assets/styles.css?v=3.0.0">
 </head>
 <body>
 
@@ -417,38 +417,46 @@
     <div class="headline" id="headlineStats"></div>
 
     <div class="tabs" id="resultTabs">
-      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="overview">Overview</button>
       <button class="tab" data-tab="howyousave">How you save</button>
       <button class="tab" data-tab="actions">Action plan</button>
       <button class="tab" data-tab="computation">Computation</button>
       <button class="tab" data-tab="forms">Forms &amp; filing</button>
       <button class="tab" data-tab="checklist">Documents</button>
+      <button class="tab" data-tab="scenarios">What-if scenarios</button>
       <button class="tab" data-tab="advanced">Advanced analysis</button>
+      <button class="tab" data-tab="agents">Agent pipeline</button>
       <button class="tab" data-tab="reasoning">Agent trace</button>
     </div>
 
-    <div id="tab-overview" class="tab-panel"></div>
+    <div id="tab-dashboard" class="tab-panel"></div>
+    <div id="tab-overview" class="tab-panel hidden"></div>
     <div id="tab-howyousave" class="tab-panel hidden"></div>
     <div id="tab-actions" class="tab-panel hidden"></div>
     <div id="tab-computation" class="tab-panel hidden"></div>
     <div id="tab-forms" class="tab-panel hidden"></div>
     <div id="tab-checklist" class="tab-panel hidden"></div>
+    <div id="tab-scenarios" class="tab-panel hidden"></div>
     <div id="tab-advanced" class="tab-panel hidden"></div>
+    <div id="tab-agents" class="tab-panel hidden"></div>
     <div id="tab-reasoning" class="tab-panel hidden"></div>
   </section>
 
 </main>
 
-<script src="src/rulebook.js?v=2.0.0"></script>
-<script src="src/engine.js?v=2.0.0"></script>
-<script src="src/advisor.js?v=2.0.0"></script>
-<script src="src/interest.js?v=2.0.0"></script>
-<script src="src/forecast.js?v=2.0.0"></script>
-<script src="src/advancetax.js?v=2.0.0"></script>
-<script src="src/stopping.js?v=2.0.0"></script>
-<script src="src/allocate.js?v=2.0.0"></script>
-<script src="src/llm.js?v=2.0.0"></script>
-<script src="src/samples.js?v=2.0.0"></script>
-<script src="src/app.js?v=2.0.0"></script>
+<script src="src/rulebook.js?v=3.0.0"></script>
+<script src="src/engine.js?v=3.0.0"></script>
+<script src="src/advisor.js?v=3.0.0"></script>
+<script src="src/interest.js?v=3.0.0"></script>
+<script src="src/forecast.js?v=3.0.0"></script>
+<script src="src/advancetax.js?v=3.0.0"></script>
+<script src="src/stopping.js?v=3.0.0"></script>
+<script src="src/allocate.js?v=3.0.0"></script>
+<script src="src/llm.js?v=3.0.0"></script>
+<script src="src/agents.js?v=3.0.0"></script>
+<script src="src/charts.js?v=3.0.0"></script>
+<script src="src/samples.js?v=3.0.0"></script>
+<script src="src/app.js?v=3.0.0"></script>
 </body>
 </html>

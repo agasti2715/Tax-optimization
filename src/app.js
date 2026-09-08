@@ -805,10 +805,282 @@
     renderForms();
     renderChecklist();
     renderReasoning();
+    renderAdvanced();
 
     $('#intakeView').classList.add('hidden');
     $('#resultsView').classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ==========================================================================
+   * ADVANCED ANALYSIS — the three models that need more than this year's data
+   * ========================================================================*/
+
+  /**
+   * The forecaster needs two things a tax return never records: how old the
+   * taxpayer is, and how much of their income is variable. Neither is
+   * derivable from a Form 16 — two consultants earning the same Rs.16 lakh can
+   * face completely different distributions next year — so they are asked for
+   * directly, with a sensible default per employment type.
+   */
+  let advFeatures = null;
+
+  function defaultFeatures() {
+    const emp = profile.employmentType === 'retired' ? 'salaried' : (profile.employmentType || 'salaried');
+    return {
+      employmentType: emp,
+      city: profile.city,
+      age: profile.ageBand === 'superSenior' ? 82 : profile.ageBand === 'senior' ? 66 : 35,
+      variableShare: emp === 'salaried' ? 0.25 : 0.6,
+    };
+  }
+
+  function advState() {
+    if (!advFeatures) advFeatures = defaultFeatures();
+    return {
+      features: advFeatures,
+      status: Number($('#advStatus') ? $('#advStatus').value : 0),
+      budget: Number($('#advBudget') ? $('#advBudget').value : 150000) || 0,
+    };
+  }
+
+  function renderAdvanced() {
+    const st = advState();
+    const f = st.features;
+
+    /* ---- 1. the irreversible regime option --------------------------- */
+    const stop = RegimeStopping.analyse(profile, year, f, { status: st.status });
+
+    let regimeCard;
+    if (!stop.applicable) {
+      regimeCard = `
+        <div class="body">
+          <p class="lede">${esc(stop.reason)}</p>
+          <p>There is no option to value here — you may choose again next year, and the year
+             after. This model matters for anyone filing ITR-3 or ITR-4.</p>
+        </div>`;
+    } else {
+      const flips = stop.recommendation.contradictsMyopic;
+      regimeCard = `
+        <div class="body">
+          <div class="versus">
+            <div class="v"><b>New regime, this year</b><div class="amt">${fmt(stop.thisYear.newRegime)}</div></div>
+            <div class="v"><b>Old regime, this year</b><div class="amt">${fmt(stop.thisYear.oldRegime)}</div></div>
+          </div>
+          <p class="lede" style="margin-top:12px;">
+            On this year alone the <b>${esc(stop.thisYear.cheaper)}</b> regime is cheaper by
+            ${fmt(stop.thisYear.gap)}. Every one-year calculator stops there.
+          </p>
+          <div class="note-box">
+            <b>Over your remaining ${stop.horizonYears} working years: ${esc(stop.recommendation.label)}</b>
+            <div style="margin-top:6px;">
+              A one-year comparison would say &ldquo;${esc(stop.recommendation.myopicLabel)}&rdquo;.
+              ${flips
+                ? '<b>Looking ahead reverses that.</b> Under s.115BAC(6) leaving the new regime is a ' +
+                  'once-in-a-lifetime move, so this year&rsquo;s saving has to be worth more than the ' +
+                  'option it would spend. Here it is not.'
+                : 'Looking ahead agrees with it, so the move is safe to make.'}
+            </div>
+          </div>
+          <p style="font-size:12.5px; color:var(--ink-soft);">
+            Solved as an optimal stopping problem over a ${stop.grid.length}-point income grid.
+            A one-year comparison leaves <b>${fmt(stop.lifetime.costOfMyopia)}</b> of discounted
+            lifetime tax on the table. The direction is stable across random seeds; the rupee
+            margin behind it is not, so it is deliberately not quoted.
+          </p>
+        </div>`;
+    }
+
+    /* ---- 2. advance tax under uncertainty ---------------------------- */
+    const at = AdvanceTax.optimise(profile, year, f, { samples: 300 });
+    const rows = at.optimal.payments
+      .map((p) => `<tr><td>${esc(p.by)}</td><td class="num">${fmt(p.amount)}</td></tr>`)
+      .join('');
+
+    /* ---- 3. where a limited budget should go ------------------------- */
+    const al = Allocate.optimise(profile, year, { budget: st.budget });
+    const gap = Allocate.optimalityGap(profile, year, st.budget);
+    const allocRows = al.allocation.length
+      ? al.allocation
+          .map((a) => `<tr>
+              <td><b>${esc(a.section)}</b><br><span style="font-size:12px; color:var(--ink-soft);">${esc(a.label)}</span></td>
+              <td class="num">${fmt(a.amount)}</td>
+              <td class="num" style="color:var(--ink-soft);">${fmt(a.realCost)}</td>
+            </tr>`)
+          .join('')
+      : `<tr><td colspan="3" class="empty">Nothing here is worth buying at this budget — every
+           remaining option costs more than the tax it would save.</td></tr>`;
+
+    $('#tab-advanced').innerHTML = `
+      <div class="card">
+        <header>
+          <h2>Assumptions these models need</h2>
+          <span class="badge ${Forecast.hasTrainedModel() ? 'good' : 'grey'}">
+            ${Forecast.hasTrainedModel() ? 'trained forecaster' : 'analytic prior'}
+          </span>
+        </header>
+        <div class="body">
+          <p class="lede">A tax return records what happened. These three models ask what happens
+             next, so they need two things a Form 16 never captures.</p>
+          <div class="grid3">
+            <div class="field">
+              <label for="advAge">Your age</label>
+              <input type="number" id="advAge" min="18" max="95" value="${f.age}">
+            </div>
+            <div class="field">
+              <label for="advVar">Share of pay that is variable</label>
+              <input type="number" id="advVar" min="0" max="1" step="0.05" value="${f.variableShare}">
+            </div>
+            <div class="field">
+              <label for="advStatus">Your regime position</label>
+              <select id="advStatus">
+                <option value="0"${st.status === 0 ? ' selected' : ''}>New regime, never opted out</option>
+                <option value="1"${st.status === 1 ? ' selected' : ''}>Old regime, having filed Form 10-IEA</option>
+                <option value="2"${st.status === 2 ? ' selected' : ''}>Back in the new regime — locked</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <header><h2>1 &nbsp;The regime choice is an option, not a comparison</h2>
+          <span class="badge ${stop.applicable ? 'good' : 'grey'}">s.115BAC(6)</span></header>
+        ${regimeCard}
+      </div>
+
+      <div class="card">
+        <header><h2>2 &nbsp;Advance tax, before you know what you will earn</h2>
+          <span class="badge">ss.234B / 234C</span></header>
+        <div class="body">
+          <p class="lede">
+            Underpaying costs 1% a month; overpaying earns back only 0.5%. Because the two are not
+            symmetric, the right instalment is not your expected liability — it is a
+            <b>quantile</b> of it.
+          </p>
+          <div class="versus">
+            <div class="v"><b>Pay at this percentile</b>
+              <div class="amt">${Math.round(at.optimal.theta * 100)}<span style="font-size:16px;">th</span></div></div>
+            <div class="v"><b>Your likely liability</b><div class="amt">${fmt(at.liability.median)}</div>
+              <div style="font-size:12px; color:var(--ink-soft);">10th–90th: ${fmt(at.liability.p10)} to ${fmt(at.liability.p90)}</div></div>
+          </div>
+          <div class="table-wrap" style="margin-top:12px;">
+            <table><thead><tr><th>Due</th><th class="num">Pay</th></tr></thead><tbody>${rows}</tbody></table>
+          </div>
+          <p style="font-size:12.5px; color:var(--ink-soft);">
+            Against the conventional approach of assuming this year repeats last year, this schedule
+            saves an expected <b>${fmt(at.savingVsPoint)}</b> of statutory interest.
+            ${esc(at.forecast.provenance)}
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <header><h2>3 &nbsp;Where a limited amount of money should actually go</h2>
+          <span class="badge">exact, not greedy</span></header>
+        <div class="body">
+          <div class="field" style="max-width:300px;">
+            <label for="advBudget">What you can still commit before 31 March</label>
+            <input type="number" id="advBudget" min="0" step="10000" value="${st.budget}">
+          </div>
+          <div class="table-wrap" style="margin-top:12px;">
+            <table>
+              <thead><tr><th>Section</th><th class="num">Put in</th><th class="num">What it really costs you</th></tr></thead>
+              <tbody>${allocRows}</tbody>
+            </table>
+          </div>
+          <p class="lede" style="margin-top:10px;">
+            Tax falls by <b>${fmt(al.taxSaved)}</b> for a real cost of ${fmt(al.cost)} —
+            a net gain of <b>${fmt(al.netGain)}</b>, in the <b>${esc(al.regime)}</b> regime.
+          </p>
+          <p style="font-size:12.5px; color:var(--ink-soft);">
+            The objective is tax <em>plus what the action costs you</em>. Minimise tax alone and the
+            answer is to donate everything — a rupee given away saves at most 30 paise.
+            Filling the largest headroom first, the way a rule list does, would cost
+            <b>${fmt(gap.gap)}</b> more here.
+          </p>
+        </div>
+      </div>`;
+
+    // Re-run whenever an assumption changes.
+    ['advAge', 'advVar', 'advStatus', 'advBudget'].forEach((id) => {
+      const el = $('#' + id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        advFeatures = {
+          employmentType: advFeatures.employmentType,
+          city: advFeatures.city,
+          age: Number($('#advAge').value) || 35,
+          variableShare: Math.max(0, Math.min(1, Number($('#advVar').value) || 0)),
+        };
+        renderAdvanced();
+      });
+    });
+  }
+
+  /* ==========================================================================
+   * CLAUDE — fills the form, and does nothing else
+   * ========================================================================*/
+
+  async function runClaude() {
+    const status = $('#llmStatus');
+    const key = $('#llmKey').value.trim();
+    const text = $('#llmText').value.trim();
+
+    if (key) localStorage.setItem('anthropicKey', key);
+
+    status.innerHTML = '<span style="color:var(--ink-soft);">Reading what you wrote…</span>';
+    $('#btnLlm').disabled = true;
+
+    try {
+      const out = await LLM.extractProfile(text, { apiKey: key });
+
+      const before = JSON.parse(JSON.stringify(profile));
+      profile = out.profile;
+      if (before.name && !profile.name) profile.name = before.name;
+      advFeatures = out.features;
+      writeForm();
+
+      const bits = [];
+      bits.push('<b style="color:var(--good);">Filled ' + out.filled.length + ' fields.</b> ' +
+                esc(out.notes));
+      if (out.rejected.length) {
+        bits.push('<div style="margin-top:6px;"><b>Ignored:</b> ' + esc(out.rejected.join('; ')) +
+                  ' — these did not pass validation, so they were never applied.</div>');
+      }
+      if (!out.citations.ok) {
+        bits.push('<div style="margin-top:6px;"><b>Unverified citation:</b> ' +
+                  esc(out.citations.unknown.join(', ')) +
+                  ' — not in this tool&rsquo;s rulebook, so treat it with suspicion.</div>');
+      }
+      if (out.missing.length) {
+        bits.push('<div style="margin-top:6px;"><b>Still needed:</b> ' +
+                  esc(out.missing.join('; ')) + '</div>');
+      }
+      bits.push('<div style="margin-top:6px; color:var(--ink-soft); font-size:12px;">' +
+                'Claude filled the form and stopped there. Every figure in the report is computed ' +
+                'by the engine. Check the fields before relying on them.</div>');
+      status.innerHTML = bits.join('');
+    } catch (err) {
+      status.innerHTML = '<b>Could not read that:</b> ' + esc(err.message);
+    } finally {
+      $('#btnLlm').disabled = false;
+    }
+  }
+
+  /**
+   * Fetch the trained forecaster after the page is already usable.
+   *
+   * Deliberately not awaited. If the file is missing — or the page was opened
+   * straight off the filesystem, where fetch cannot read it — the analytic
+   * prior is already in place and every feature still works, just slightly
+   * less well calibrated. A model download is not worth blocking a demo on.
+   */
+  function loadForecaster() {
+    fetch('models/forecaster.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (json) Forecast.loadModel(json); })
+      .catch(() => { /* the prior is already working; nothing to do */ });
   }
 
   /* ---------- wiring ------------------------------------------------------ */
@@ -828,6 +1100,15 @@
     $('#sampleSel').addEventListener('change', (e) => {
       const key = e.target.value;
       profile = key && SAMPLES[key] ? JSON.parse(JSON.stringify(SAMPLES[key])) : blankProfile();
+
+      // Each sample carries its own forecasting features — age and how much of
+      // the income is variable. They are not derivable from the profile, and
+      // falling back to the generic default would analyse a 29-year-old
+      // consultant as a 35-year-old with a different income distribution.
+      advFeatures = (key && SAMPLE_FEATURES && SAMPLE_FEATURES[key])
+        ? Object.assign({}, SAMPLE_FEATURES[key], { city: profile.city })
+        : null;
+
       writeForm();
       updateLive();
     });
@@ -861,9 +1142,22 @@
       $$('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + t.dataset.tab));
     });
 
+    /* ---- Claude intake ---------------------------------------------- */
+    $('#btnLlm').addEventListener('click', runClaude);
+
+    // The key lives in this browser and nowhere else. It is never sent
+    // anywhere but Anthropic, and never committed — see the note at the top
+    // of src/llm.js about why this arrangement is for a local demo only.
+    const savedKey = localStorage.getItem('anthropicKey');
+    if (savedKey) $('#llmKey').value = savedKey;
+
     showStep(0);
     writeForm();
     updateLive();
+
+    // Started last, and not awaited: the page is fully usable on the analytic
+    // prior while this arrives.
+    loadForecaster();
   }
 
   document.addEventListener('DOMContentLoaded', init);

@@ -376,7 +376,7 @@ function makeDistribution(spec) {
  * one-step model to its own output. stopping.js uses this to build the
  * transition kernel its dynamic program runs on.
  */
-function simulatePaths(features, years, nPaths, seed) {
+function simulatePaths(features, years, nPaths, seed, opts) {
   const rng = makeRng(seed);
   const paths = [];
 
@@ -386,7 +386,7 @@ function simulatePaths(features, years, nPaths, seed) {
     let age = fNum(features.age);
 
     for (let y = 0; y < years; y++) {
-      const step = predict(Object.assign({}, features, { currentIncome: income, age }));
+      const step = predict(Object.assign({}, features, { currentIncome: income, age }), opts);
       income = Math.max(0, step.quantile(rng()));
       age += 1;
       row.push(income);

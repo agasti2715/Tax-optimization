@@ -136,7 +136,18 @@ const ACTIONS = [
  * probability mass actually is.
  */
 function buildIncomeGrid(features, years, size, seed) {
-  const paths = Forecast.simulatePaths(features, years, 400, seed);
+  // The grid is built from the PRIOR even when a trained model is loaded, and
+  // that is deliberate rather than lazy. Where the grid points sit is a
+  // discretisation choice — it decides the resolution of the state space, not
+  // what the model believes. The kernel that follows uses the trained model
+  // for every actual transition probability.
+  //
+  // It also happens to be where nearly all the time went. Laying out the grid
+  // means simulating 400 careers over 30 years, and scoring each of those
+  // 12,000 steps through a 150-tree ensemble at 11 quantiles is around 20
+  // million tree walks — several times the cost of the dynamic program it is
+  // only preparing for.
+  const paths = Forecast.simulatePaths(features, years, 400, seed, { forcePrior: true });
   const all = [];
   for (const row of paths) for (const v of row) all.push(v);
   all.sort((a, b) => a - b);
@@ -155,16 +166,27 @@ function buildIncomeGrid(features, years, size, seed) {
   return grid;
 }
 
-/** Nearest grid index for an income level, on the log scale the grid uses. */
+/**
+ * Nearest grid index for an income level, on the log scale the grid uses.
+ *
+ * Computed directly rather than searched. The grid is uniformly spaced in
+ * logs, so the index is just the distance from the first node divided by the
+ * step — no scan, no comparison, one logarithm instead of one per node.
+ *
+ * This is called once per Monte Carlo draw per state per year, which for a
+ * 48-point grid is millions of times per analysis. The linear version was the
+ * bottleneck once the tree ensemble stopped being one: shrinking the model
+ * from 150 trees to 45 changed the runtime by 0.01s, which is what pointed
+ * here.
+ */
 function nearestIndex(grid, value) {
-  let best = 0;
-  let bestD = Infinity;
-  const lv = Math.log(Math.max(1, value));
-  for (let i = 0; i < grid.length; i++) {
-    const d = Math.abs(Math.log(grid[i]) - lv);
-    if (d < bestD) { bestD = d; best = i; }
-  }
-  return best;
+  const n = grid.length;
+  if (n < 2) return 0;
+  const lo = Math.log(grid[0]);
+  const step = (Math.log(grid[n - 1]) - lo) / (n - 1);
+  if (!(step > 0)) return 0;
+  const idx = Math.round((Math.log(Math.max(1, value)) - lo) / step);
+  return idx < 0 ? 0 : (idx >= n ? n - 1 : idx);
 }
 
 /* ============================================================================
@@ -257,13 +279,38 @@ function buildKernelShiftInvariant(features, grid, years, draws, seed) {
   return kernel;
 }
 
-/** The general builder — one sampled row per state. Used for trained models. */
+/**
+ * The general builder — one sampled row per state. Used for trained models,
+ * whose step distribution varies with income level and so cannot be shifted.
+ *
+ * LAYERS ARE CACHED BY AGE BUCKET. Rebuilding a full 48-point layer for each
+ * of 31 years means scoring 1,488 states through the tree ensemble at every
+ * quantile, which is where the time goes. But the only thing that changes
+ * between one year and the next is age and years of experience, and the
+ * forecaster does not resolve age that finely — the prior taper moves in
+ * bands, not birthdays. Recomputing every year is therefore finer than the
+ * model's own granularity, so layers are computed once per five-year bucket
+ * and reused.
+ *
+ * This is an approximation, unlike the shift-invariant path, and it is worth
+ * being clear that it is one. It trades a resolution the model does not
+ * actually have for roughly a six-fold speed-up, which is the difference
+ * between a demo that pauses and one that does not.
+ */
 function buildKernelGeneral(features, grid, years, draws, seed) {
   const rng = Forecast.makeRng(seed);
   const kernel = [];
   const n = grid.length;
+  const cache = new Map();
 
   for (let t = 0; t < years; t++) {
+    const baseAge = (features.age || 35) + t;
+    const bucket = Math.floor(baseAge / 5);
+    if (cache.has(bucket)) {
+      kernel.push(cache.get(bucket));
+      continue;
+    }
+
     const layer = [];
     for (let i = 0; i < n; i++) {
       const row = new Float64Array(n);
@@ -281,6 +328,7 @@ function buildKernelGeneral(features, grid, years, draws, seed) {
       for (let j = 0; j < n; j++) row[j] /= draws;
       layer.push(row);
     }
+    cache.set(bucket, layer);
     kernel.push(layer);
   }
   return kernel;

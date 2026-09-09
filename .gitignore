@@ -25,6 +25,12 @@ desktop.ini
 # generated file is reproducible rather than arbitrary - ml/calibration.py
 # holds the targets and ml/validate_population.py checks the match.
 ml/data/*.csv
+# ...but the sample and the data dictionary ARE committed, so that anyone
+# opening the repository can see what the data looks like without having to
+# regenerate 38 MB first. The sample is drawn by whole career rather than by
+# row, so it carries the same income distribution as the full population.
+!ml/data/population_sample.csv
+!ml/data/DATA_DICTIONARY.csv
 __pycache__/
 *.pyc
 

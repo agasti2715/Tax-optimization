@@ -246,7 +246,7 @@ def main():
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
 
     written = 0
-    with open(args.out, "w", newline="") as fh:
+    with open(args.out, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=FIELDS)
         writer.writeheader()
         for _ in range(args.n):

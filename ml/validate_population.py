@@ -41,7 +41,7 @@ def load_incomes(path, at_year=None):
     the point the generator anchors.
     """
     rows = []
-    with open(path) as fh:
+    with open(path, encoding="utf-8") as fh:
         for r in csv.DictReader(fh):
             rows.append((float(r["logIncome"]), int(r["expYears"]), int(r["age"])))
 

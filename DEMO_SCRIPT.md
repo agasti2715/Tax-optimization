@@ -224,6 +224,77 @@ Load **"Rajesh — Salaried, home loan, Pune"**, click Analyse.
 
 ---
 
+---
+
+# The advanced material (add 3 minutes)
+
+Everything above is the original demo and still runs. This section is the new work. It lives
+behind the **Advanced analysis** tab, and the whole analysis takes well under a second, so you
+can click straight through it.
+
+**Setup:** pick **Meera — Consultant** from the sample dropdown, press **Analyse my tax**, then
+open **Advanced analysis**. That is the entire click path.
+
+## The line that lands
+
+> "The old regime saves her twenty-three thousand rupees this year. Every tax calculator on the
+> internet tells her to file Form 10-IEA and take it. Ours tells her not to."
+
+Then read the card. Under **s.115BAC(6)**, a taxpayer with professional income can leave the new
+regime **once in a lifetime**, and return once. So it is not a comparison, it is an irreversible
+option — and the saving on the table has to be worth more than the option it spends. Solved as an
+optimal stopping problem over her remaining 25 working years, it is not.
+
+**If asked "how do you know that isn't noise":** the recommendation is checked across several
+random seeds and reported with its agreement level. The *direction* is stable; the rupee margin
+behind it is not, because it is a small difference between two lifetime figures of around six
+crore. So the tool deliberately does not quote that margin. Saying this before you are asked is
+better than saying it afterwards.
+
+## The second card — advance tax
+
+> "On the fifteenth of June you have to pay tax on money you have not earned yet. Underpaying
+> costs one percent a month. Overpaying earns back only half a percent. Those are not symmetric,
+> so the right instalment is not what you expect to owe — it is a *quantile* of it."
+
+That is the newsvendor problem, and the tool solves it as one. The percentile it lands on is
+around **66–68**, which is the answer falling out of the statute rather than being chosen.
+
+**Expect the question "why would I pay more than I expect to owe?"** — that *is* the point.
+The penalty for being short bites about twice as hard as the cost of being long.
+
+## The third card — where the money goes
+
+Move the budget field. The answer changes, and that is the demonstration: with unlimited cash the
+order does not matter because you reach everything; with fifty thousand rupees, which you reach
+*first* is the whole decision.
+
+> "And notice it never tells you to donate. It is offered the option. A rupee given away saves you
+> thirty paise, so the objective is tax *plus what the action costs you* — not tax alone. A solver
+> that minimises tax alone gives your money away and reports a triumph."
+
+## Claude (back on the intake screen)
+
+Paste an API key, type a sentence like *"I'm 29, freelance UX in Bengaluru, made about 16 lakh,
+paying off an education loan"*, and press **Fill the form**.
+
+> "Claude fills the form. It never computes a number. It cannot — it is given a tool definition
+> and has to answer by calling it, so there is no free-text route into the profile at all."
+
+Everything it returns is validated before it is applied, and the panel says what it ignored. If a
+grader asks how you stop it hallucinating, that panel *is* the answer: an invented section, a
+field where the model tried to do the arithmetic itself, and a citation of a section we do not
+implement are all caught and reported rather than used.
+
+**Have the key ready in the box before you present**, and clear it afterwards.
+
+## If you only have one extra minute
+
+Show Meera and the regime card. Nothing else in the project reverses a recommendation that every
+competing tool gets wrong.
+
+---
+
 # If something goes wrong on the day
 
 - **Blank page / nothing happens** → open the browser console (F12). If you see a file-loading
@@ -234,3 +305,9 @@ Load **"Rajesh — Salaried, home loan, Pune"**, click Analyse.
   switch the browser to dark mode.
 - **Have `node test/verify.js` output ready in a second terminal** in case the browser misbehaves —
   it proves the engine independently of the UI.
+- **The Advanced tab is blank** → it needs `models/forecaster.json`. If it is missing the app still
+  works on its built-in forecaster; nothing breaks, the numbers just shift slightly.
+- **Claude says "Could not read that"** → the key is wrong or missing. Everything else on the page
+  works without it; skip the Claude section and carry on.
+- **Serve the folder rather than opening the file directly** (`python -m http.server 5180`), or the
+  browser will refuse to load the trained model from disk.

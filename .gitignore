@@ -14,3 +14,16 @@ desktop.ini
 # Logs and temp files
 *.log
 *.tmp
+
+# --- machine learning ------------------------------------------------------
+# The synthetic population is large and fully regenerable from a seed:
+#   python ml/generate_population.py --n 8000 --years 14
+# The seed is fixed, so anyone can reproduce the exact training set.
+ml/data/*.csv
+__pycache__/
+*.pyc
+
+# models/forecaster.json IS committed on purpose. The app is client-side with
+# no build step, so the trained model has to ship with it — a visitor cannot
+# run Python to produce one. ml/data/export_check.json ships with it so the
+# cross-language test can run anywhere.

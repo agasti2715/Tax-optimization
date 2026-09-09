@@ -120,6 +120,31 @@ ok('...and carries the measured improvement over the prior',
        '  (' + d.metrics.improvementOverPriorPct.toFixed(2) + '% better than the prior)'
      : 'no metrics');
 
+/* ---- the artefact must carry its own data provenance ------------------ */
+// A model file gets copied, emailed and committed. If the answer to "where did
+// this data come from" lives only in a README, it is lost the first time the
+// file moves. So the calibration source travels inside the artefact itself.
+ok('The artefact names the data source it was calibrated against',
+   !!(artefact.calibration && artefact.calibration.source &&
+      /CBDT|Central Board of Direct Taxes/i.test(artefact.calibration.source.publisher)),
+   artefact.calibration
+     ? artefact.calibration.source.publication + ' (' +
+       artefact.calibration.source.assessment_year + '), ' +
+       artefact.calibration.source.publisher
+     : 'no calibration block — retrain with the current ml/train_forecaster.py');
+
+ok('...and the published income bands it was matched to',
+   !!(artefact.calibration && Array.isArray(artefact.calibration.incomeBands) &&
+      Math.abs(artefact.calibration.incomeBands
+        .reduce((s, b) => s + b.publishedShare, 0) - 1) < 1e-9),
+   artefact.calibration && artefact.calibration.incomeBands
+     ? artefact.calibration.incomeBands.length + ' bands, shares summing to 1'
+     : 'missing');
+
+ok('...and still says plainly that it is not real taxpayer data',
+   /not fitted on real taxpayer data/i.test(artefact.provenance || ''),
+   String(artefact.provenance).slice(0, 140) + '…');
+
 console.log('\n' + '='.repeat(74));
 console.log('  ' + pass + ' passed, ' + fail + ' failed');
 console.log('='.repeat(74) + '\n');

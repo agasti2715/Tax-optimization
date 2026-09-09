@@ -19,6 +19,11 @@ desktop.ini
 # The synthetic population is large and fully regenerable from a seed:
 #   python ml/generate_population.py --n 8000 --years 14
 # The seed is fixed, so anyone can reproduce the exact training set.
+# The population is 37 MB and fully regenerable from a fixed seed:
+#   python ml/generate_population.py --n 40000 --years 16
+# Its income levels are calibrated to the CBDT published distribution, so the
+# generated file is reproducible rather than arbitrary - ml/calibration.py
+# holds the targets and ml/validate_population.py checks the match.
 ml/data/*.csv
 __pycache__/
 *.pyc

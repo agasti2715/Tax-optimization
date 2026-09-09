@@ -16,9 +16,20 @@ whether the model would work on real data, the honest answer is: the METHOD
 would transfer, the fitted parameters would not, and validating that would need
 data we do not have.
 
-What "calibrated" means here is narrow and specific. The generative process
-below encodes structural facts about how incomes behave that are not in
-dispute — incomes compound rather than add, growth slows with age, changing
+WHAT IS ANCHORED TO REAL DATA, AND WHAT IS NOT. This matters, so it is split
+in two.
+
+The income LEVELS are not invented. Every simulated career is rescaled so the
+population's income distribution matches the one the Income Tax Department
+actually publishes - see ml/calibration.py, which carries the source and the
+figures, and ml/validate_population.py, which checks the generated population
+against it band by band.
+
+The DYNAMICS cannot be calibrated that way, because the published statistics
+are a snapshot rather than a history: they say how many people earn Rs.10-50
+lakh, not how a person's income moved from one year to the next. So the
+generative process below encodes structural facts about how incomes behave
+that are not in dispute — incomes compound rather than add, growth slows with age, changing
 employer produces a jump that an annual increment does not, self-employment is
 more volatile than salaried employment, and shocks persist rather than being
 independent year to year. The MAGNITUDES attached to those facts are assumptions,
@@ -50,6 +61,8 @@ import csv
 import math
 import os
 import random
+
+import calibration
 
 # =============================================================================
 # CALIBRATION CONSTANTS — assumptions, stated openly so they can be challenged
@@ -112,9 +125,8 @@ MIN_INCOME = 60000
 
 def draw_person(rng, years):
     """Simulate one taxpayer's career and return a list of yearly records."""
-    etype = rng.choices(
-        ["salaried", "professional", "business"], weights=[0.72, 0.14, 0.14]
-    )[0]
+    types = list(calibration.EMPLOYMENT_MIX.keys())
+    etype = rng.choices(types, weights=[calibration.EMPLOYMENT_MIX[t] for t in types])[0]
 
     start_age = rng.randint(22, 34)
     metro = 1 if rng.random() < 0.45 else 0
@@ -126,13 +138,15 @@ def draw_person(rng, years):
     else:
         variable_share = min(1.0, max(0.35, rng.gauss(0.70, 0.20)))
 
-    median, sigma0 = START_INCOME[etype]
-    income = median * math.exp(rng.gauss(0, sigma0))
-
+    # ---- STEP 1: simulate the SHAPE of the career -----------------------
+    #
+    # Started from 1.0 rather than from a rupee figure, because the level is
+    # applied afterwards. What this loop produces is the trajectory: the
+    # growth, the volatility, the jumps.
     shock = 0.0
     years_since_switch = 0
-    prev_income = income
-    rows = []
+    path = [1.0]
+    switches = [0]
 
     for t in range(years):
         age = start_age + t
@@ -151,30 +165,63 @@ def draw_person(rng, years):
             jump = rng.gauss(JUMP_MEAN, JUMP_SIGMA)
             switched = 1
 
-        growth = drift + shock + jump
-        next_income = max(MIN_INCOME, income * math.exp(growth))
+        path.append(path[-1] * math.exp(drift + shock + jump))
+        switches.append(switched)
 
-        recent_growth = math.log(income / prev_income) if prev_income > 0 else 0.0
+    # ---- STEP 2: ANCHOR THE LEVEL TO THE PUBLISHED DISTRIBUTION ---------
+    #
+    # Draw the income this person should have at MID-career from the CBDT
+    # published distribution, then scale the WHOLE path so it lands there.
+    #
+    # Rescaling after the fact rather than before is the whole trick, and the
+    # first attempt got it wrong. That version worked backwards from the drift
+    # alone to pick a starting income — but shocks and job-change jumps also
+    # accumulate multiplicatively, and jumps are mean-positive, so by
+    # mid-career everyone had drifted well above where they were aimed. The
+    # generated population came out with 9% of people above Rs.50 lakh against
+    # a published 1.4%, and a 24.8% total mismatch.
+    #
+    # Scaling the finished path fixes that exactly, because the target is hit
+    # by construction rather than by prediction. Crucially it costs nothing:
+    # multiplying every income by one constant leaves every log-growth
+    # increment untouched, and those increments are precisely what the model
+    # is trained on. The dynamics are identical; only the level moves.
+    #
+    # Why mid-career and not year one: the published statistics describe the
+    # whole filing population, which is people at every career stage at once.
+    # The middle of a simulated career is the closest single point to that
+    # mixture. Anchoring at year one would leave the population far richer
+    # than the published data, because everyone then grows for another decade
+    # on top of an already-representative start.
+    mid = years // 2
+    target_mid = calibration.sample_income(rng)
+    scale = target_mid / path[mid] if path[mid] > 0 else 1.0
+    path = [max(MIN_INCOME, v * scale) for v in path]
 
-        # One training row: the state THIS year, and the growth to next year.
+    # ---- STEP 3: emit one training row per year -------------------------
+    rows = []
+    for t in range(years):
+        income = path[t]
+        next_income = path[t + 1]
+        prev_income = path[t - 1] if t > 0 else path[0]
+        years_since_switch = 0 if switches[t] else years_since_switch + 1
+
         rows.append({
             "logIncome": math.log(income),
-            "age": age,
+            "age": start_age + t,
             "expYears": t + (start_age - 22),
             "variableShare": round(variable_share, 4),
-            "recentGrowth": round(recent_growth, 6),
+            "recentGrowth": round(math.log(income / prev_income) if prev_income > 0 else 0.0, 6),
             "yearsSinceSwitch": years_since_switch,
             "isSalaried": 1 if etype == "salaried" else 0,
             "isProfessional": 1 if etype == "professional" else 0,
             "isBusiness": 1 if etype == "business" else 0,
             "isMetro": metro,
             # TARGET: log growth to next year. Modelling growth rather than the
-            # level is what lets one model serve every income scale.
+            # level is what lets one model serve every income scale — and it is
+            # exactly the quantity the rescaling above leaves untouched.
             "target_logGrowth": round(math.log(next_income / income), 6),
         })
-
-        prev_income = income
-        income = next_income
         years_since_switch = 0 if switched else years_since_switch + 1
 
     return rows

@@ -15,23 +15,100 @@ So the model predicts a **distribution**, using quantile regression, and is
 scored with **pinball loss** — the proper scoring rule for quantile forecasts,
 and the loss quantile regression actually minimises.
 
-## Honesty about the data
+## Where the data comes from
 
-**There is no public dataset of individual Indian taxpayers' income histories.**
-There cannot be — it is precisely the data that is protected. The model is
-therefore trained on a **calibrated synthetic population**.
+**The short version:** the income *levels* are anchored to real published
+government data. The income *dynamics* are simulated, because nobody publishes
+the data that would be needed to do otherwise.
 
-That is a legitimate way to build and test the machinery. It is not a licence to
-call this a model trained on real taxpayers. Say "calibrated synthetic
-population", every time. The `provenance` string travels with every prediction
-into the UI so the claim cannot be quietly lost.
+### Why there is no real dataset to use
 
-What "calibrated" means is narrow: the generative process encodes structural
-facts that are not in dispute — incomes compound rather than add, growth slows
-with age, changing employer produces a jump an annual increment does not,
-self-employment is more volatile than salaried employment, and shocks persist
-year to year. The *magnitudes* are assumptions, and each is a named constant at
-the top of `generate_population.py` so it can be argued with.
+Two different datasets matter here, and only one of them exists in public:
+
+| | |
+|---|---|
+| **What a forecaster needs** | Year-by-year income histories for individual taxpayers |
+| **What actually exists** | Aggregate counts — how many returns were filed in each income band |
+
+Individual income histories are protected personal data. No tax authority
+publishes them, and no legitimate project has them. Any project claiming to
+have trained on real Indian income histories should be asked where they got
+them.
+
+### What we anchor to instead
+
+| | |
+|---|---|
+| **Publisher** | Central Board of Direct Taxes (CBDT), Ministry of Finance, Government of India |
+| **Publication** | *Income Tax Return Statistics*, released annually |
+| **Contains** | Income-range-wise count of returns filed, by taxpayer type |
+| **Source** | https://www.incometaxindia.gov.in — Direct Taxes Data |
+| **Version used** | AY 2023-24 |
+
+CBDT has published this since AY 2012-13 as part of its open-data commitment.
+It is the authoritative public description of how income is distributed across
+Indian taxpayers.
+
+The figures live in **one file**, `ml/calibration.py`, with the citation
+directly above them. Everything downstream reads from there, so correcting a
+number is a one-line change.
+
+### How the anchoring works
+
+Each simulated career is generated first as a *shape* — growth, volatility,
+job-change jumps — starting from 1.0. Then an income is drawn from the
+published CBDT distribution and the **whole path is multiplied** so it lands
+there at mid-career.
+
+Rescaling after the fact rather than before is the point, and getting it wrong
+is easy. The first attempt worked backwards from the drift alone to pick a
+starting income — but shocks and jumps also compound, and jumps are
+mean-positive, so everyone drifted upward. It produced **9% of people above
+₹50 lakh against a published 1.4%**, a 24.8% total mismatch.
+
+Scaling the finished path hits the target by construction instead of by
+prediction, and it costs nothing: multiplying every income by one constant
+leaves every log-growth increment untouched, and those increments are exactly
+what the model trains on. **The dynamics are identical; only the level moves.**
+
+Mid-career is the anchor point because the published statistics describe the
+whole filing population — people at every career stage at once — and the
+middle of a career is the closest single point to that mixture.
+
+### Verifying it
+
+```bash
+python ml/validate_population.py
+```
+
+Bins every generated income the way CBDT does and prints both distributions
+side by side. Current result on 40,000 simulated careers:
+
+| Income band | Published | Generated | Diff |
+|---|---|---|---|
+| up to ₹5L | 33.6% | 33.6% | +0.0% |
+| ₹5L to ₹10L | 46.7% | 46.7% | +0.0% |
+| ₹10L to ₹50L | 18.3% | 18.2% | −0.1% |
+| above ₹50L | 1.4% | 1.3% | −0.1% |
+
+**0.1% of the population would have to move band.** The script fails loudly if
+that drifts past 8%, so a generator change that breaks the anchoring cannot
+pass silently.
+
+### What is still assumed
+
+The *dynamics* cannot be calibrated against a snapshot: the published data says
+how many people earn ₹10–50 lakh, not how one person's income moved from year
+to year. So growth rates, volatility, AR(1) shock persistence and job-change
+frequency are reasoned assumptions. Each is a named constant at the top of
+`generate_population.py`, so they can be argued with rather than excavated.
+
+### What to call it
+
+**"A synthetic population calibrated to the CBDT published income
+distribution."** Never "trained on real taxpayer data". The `provenance` field
+is written into the model artefact itself and travels with every prediction to
+the UI, so the claim cannot be quietly lost in a copy.
 
 ## The baseline the model must beat
 
